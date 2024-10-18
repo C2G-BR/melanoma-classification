@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "melanoma_classification"
+version = "0.0.1"
+description = "A classifier for melanoma."
+readme = "README.md"
+keywords = [] # TBD
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+  { name="Bastian Berle", email="author@example.com" },
+  { name="Ron Holzapfel", email="author@example.com" },
+]
+classifiers = [] # TBD
+dependencies = [
+    "typer==0.12.5",
+]
+
+[project.optional-dependencies]
+dev = []
+
+[project.scripts]
+your-cli-tool = "melanoma_classification.__main__:app"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.urls]
+"Homepage" = "https://github.com/C2G-BR/melanoma-classification"

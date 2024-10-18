@@ -1,0 +1,57 @@
+Goal:
+- funktionierendes Modell
+- cli
+- vll. App
+
+Project structure:
+> modelling
+    > training
+    > visualization
+    > checkpoints
+> src
+    > melanoma_classification
+        > cli 
+        > model
+
+Requirements:
+- App structure
+- Support different Classifier Networks
+- Visualize Attention
+
+
+Questions:
+- Init class token not randomly
+- Use CNNs when tokenized
+- Fixed Backbone during finetuning on other tasks or continuous training better?
+- Combined training across different classifiers/tasks with same backbone instead of layered training?
+
+
+
+1. Training: 2 Klassen
+2. Training: 3 Klassen -> bauen auf Backbone von 1. Training auf, Classifier ist neu
+3. Training: 4 Klassen -> bauen auf Backbone von 2. Training auf, Classifier ist neu
+
+
+Backbone von 3. Training mit Classifier von 1. Training
+
+
+
+
+    """Example function with types documented in the docstring.
+
+    `PEP 484`_ type annotations are supported. If attribute, parameter, and
+    return types are annotated according to `PEP 484`_, they do not need to be
+    included in the docstring:
+
+    Args:
+        param1: The first parameter.
+        param2: The second parameter.
+
+    Returns:
+        The return value. True for success, False otherwise.
+
+    .. _PEP 484:
+        https://www.python.org/dev/peps/pep-0484/
+
+
+RuntimeError: view size is not compatible with input tensor's size and stride (at least one dimension spans across two contiguous subspaces). Use .reshape(...) instead.
