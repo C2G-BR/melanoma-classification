@@ -16,11 +16,11 @@ class TransformerEncoderLayer(nn.Module):
 
     def __init__(
         self,
-        embed_dim: int,
-        num_heads: int,
+        embed_dim: int = 768,
+        num_heads: int = 8,
         mlp_ratio: float = 4.0,
         dropout: float = 0.1,
-    ) -> None:
+    ):
         """Constructor
 
         Args:
@@ -67,3 +67,19 @@ class TransformerEncoderLayer(nn.Module):
         # x = x + self.mlp(self.norm2(x))
 
         return x
+    
+if __name__ == "__main__":
+    from torchinfo import summary
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    encoder = TransformerEncoderLayer().to(device)
+    summary(encoder, input_size=(16, 196, 768))
+
+    # Test forwad & backward pass for transformer encoder layer.
+    encoder.train()
+    input_tensor = torch.randn(16, 196, 768).to(device)
+    output = encoder(input_tensor)
+    target = torch.randn_like(output)
+    loss_fn = nn.MSELoss()
+    loss = loss_fn(output, target)
+    loss.backward()

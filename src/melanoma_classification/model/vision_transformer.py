@@ -196,3 +196,19 @@ class VisionTransformer(nn.Module):
 
         # Load state dict into the current model
         self.load_state_dict(state_dict, strict=False)
+
+if __name__ == "__main__":
+    from torchinfo import summary
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    vit = VisionTransformer()
+    summary(vit, input_size=(16, 3, 224, 224))
+
+    # Test forwad & backward pass for mhsa
+    vit.train()
+    input_tensor = torch.randn(16, 3, 224, 224).to(device)
+    output = vit(input_tensor)
+    target = torch.randn_like(output)
+    loss_fn = nn.MSELoss()
+    loss = loss_fn(output, target)
+    loss.backward()
