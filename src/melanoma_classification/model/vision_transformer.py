@@ -196,6 +196,46 @@ class VisionTransformer(nn.Module):
 
         # Load state dict into the current model
         self.load_state_dict(state_dict, strict=False)
+    
+    def freeze_backbone(self) -> None:
+        """Freeze the backbone (patch embeddings and transformer layers) of the
+        model.
+        
+        This will prevent any gradients from being calculated for the backbone,
+        effectively freezing it during training.
+        """
+        # Freeze patch embedding parameters
+        for param in self.patch_embedding.parameters():
+            param.requires_grad = False
+
+        # Freeze transformer layers' parameters
+        for layer in self.transformer_layers:
+            for param in layer.parameters():
+                param.requires_grad = False
+
+        # Optionally, freeze the positional embeddings and CLS token
+        self.cls_token.requires_grad = False
+        self.pos_embed.requires_grad = False
+    
+    def unfreeze(self):
+        """Unfreeze the backbone (patch embeddings and transformer layers) of
+        the model.
+    
+        This will allow gradients to be calculated for the backbone, making it
+        trainable again.
+        """
+        # Unfreeze patch embedding parameters
+        for param in self.patch_embedding.parameters():
+            param.requires_grad = True
+
+        # Unfreeze transformer layers' parameters
+        for layer in self.transformer_layers:
+            for param in layer.parameters():
+                param.requires_grad = True
+
+        # Optionally, unfreeze the positional embeddings and CLS token
+        self.cls_token.requires_grad = True
+        self.pos_embed.requires_grad = True
 
 if __name__ == "__main__":
     from torchinfo import summary
