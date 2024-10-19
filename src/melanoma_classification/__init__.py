@@ -1,0 +1,2 @@
+
+from melanoma_classification.model.vision_transformer import VisionTransformer
