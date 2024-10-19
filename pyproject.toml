@@ -23,7 +23,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-train = ["matplotlib", "ipykernel", "scikit-learn", "pandas"]
+train = ["matplotlib", "ipykernel", "scikit-learn", "pandas", "timm"]
 
 [project.scripts]
 your-cli-tool = "melanoma_classification.__main__:app"
