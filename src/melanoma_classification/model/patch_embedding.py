@@ -3,28 +3,27 @@ import torch.nn as nn
 
 
 class PatchEmbeddingCNN(nn.Module):
-    """Patch Embedding module"""
+    """Patch Embedding with Convolutional Projection."""
 
     def __init__(
         self,
         img_size: int = 224,
-        patch_size: int = 16,
         in_channels: int = 3,
-        embed_dim: int = 768, # TODO: remove if not required anymore
-    ) -> None:
-        """Patch Embedding
+        patch_size: int = 16,
+        embed_dim: int = 768,  # TODO: remove if not required anymore
+    ):
+        """Constructor
 
-        Parameters
-        ----------
-        img_size : int, optional
-            Size of the input image, by default 224
-        patch_size : int, optional
-            Patch size, by default 16
-        in_channels : int, optional
-            Number of input channels, by default 3
-        embed_dim : int, optional
-            Embedding dimension is the size of the output embedding vector,
-            by default 768. Given by in_channels * patch_size**2.
+        The image is expected to be of dimensions (in_channels, img_size,
+        img_size).
+
+        Args:
+            img_size: Size of the input image.
+            in_channels: Number of input channels.
+            patch_size: Size of a single patch. A patch will have the dimensions
+                (in_channels, patch_size, patch_size).
+            embed_dim: Size of the output embedding vector. Generally, the rule
+                is in_channels * patch_size * patch_size.
         """
 
         super(PatchEmbeddingCNN, self).__init__()
@@ -46,61 +45,95 @@ class PatchEmbeddingCNN(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass
 
-        Parameters
-        ----------
-        x : torch.Tensor
-            Input tensor (B, in_channels, img_size, img_size) 
+        Args:
+            x: Input tensor. (B, in_channels, img_size, img_size)
 
-        Returns
-        -------
-        torch.Tensor
-            A sequence of flattened 2D patches (B, num_patches, embed_dim)
+        Returns:
+            A sequence of flattened 2D patches. (B, num_patches, embed_dim)
         """
 
         x = self.projection(x)  # (B, embed_dim, grid_size, grid_size)
-        x = x.flatten(2)        # (B, embed_dim, num_patches)
-        x = x.transpose(1, 2)   # (B, num_patches, embed_dim)
+        x = x.flatten(2)  # (B, embed_dim, num_patches)
+        x = x.transpose(1, 2)  # (B, num_patches, embed_dim)
 
         return x
 
 
+class PatchEmbeddingLinear(nn.Module):
+    """Patch Embedding with Linear Projection."""
 
-# class PatchEmbeddingLinear(nn.Module):
-#     """Patch Embedding with linear projection, like in the original ViT"""
+    def __init__(
+        self,
+        img_size: int = 224,
+        patch_size: int = 16,
+        in_channels: int = 3,
+        embed_dim: int = 768,
+    ):
+        """Constructor
 
-#     def __init__(self, img_size: int = 224, patch_size: int = 16, in_channels: int = 3, embed_dim: int = 768):
-#         """
-#         Parameters:
-#         img_size : int - Size of the input image (assumed square), default 224
-#         patch_size : int - Size of each patch, default 16
-#         in_channels : int - Number of input channels (e.g., 3 for RGB), default 3
-#         embed_dim : int - Output embedding size, default 768
-#         """
-#         super(PatchEmbedding, self).__init__()
+        The image is expected to be of dimensions (in_channels, img_size,
+        img_size).
 
-#         self.img_size = img_size
-#         self.patch_size = patch_size
-#         self.in_channels = in_channels
-#         self.embed_dim = embed_dim
+        Args:
+            img_size: Size of the input image.
+            in_channels: Number of input channels.
+            patch_size: Size of a single patch. A patch will have the dimensions
+                (in_channels, patch_size, patch_size).
+            embed_dim: Size of the output embedding vector. Generally, the rule
+                is in_channels * patch_size * patch_size.
+        """
+        super(PatchEmbeddingLinear, self).__init__()
 
-#         # Number of patches
-#         self.num_patches = (img_size // patch_size) ** 2
-        
-#         # Linear projection layer
-#         self.projection = nn.Linear(patch_size * patch_size * in_channels, embed_dim)
+        self.img_size = img_size
+        self.patch_size = patch_size
+        self.in_channels = in_channels
+        self.embed_dim = embed_dim
 
-#     def forward(self, x):
-#         # x shape: [batch_size, in_channels, img_size, img_size]
+        self.num_patches = (img_size // patch_size) ** 2
+        self.projection = nn.Linear(
+            patch_size * patch_size * in_channels,
+            embed_dim
+        )
 
-#         batch_size, channels, height, width = x.shape
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass
 
-#         # Step 1: Reshape the input into patches
-#         # Rearrange the input into patches of size (batch_size, num_patches, patch_size * patch_size * in_channels)
-#         x = x.view(batch_size, channels, height // self.patch_size, self.patch_size, width // self.patch_size, self.patch_size)
-#         x = x.permute(0, 2, 4, 1, 3, 5).contiguous()  # Bring channels to the right place
-#         x = x.view(batch_size, -1, self.patch_size * self.patch_size * channels)  # Flatten patches
+        Args:
+            x: Input tensor. (B, in_channels, img_size, img_size)
 
-#         # Step 2: Linear projection of each patch
-#         x = self.projection(x)  # Shape: [batch_size, num_patches, embed_dim]
+        Returns:
+            A sequence of flattened 2D patches. (B, num_patches, embed_dim)
+        """
+        # TODO: Understand
+        batch_size, channels, height, width = x.shape
 
-#         return x
+        # Step 1: Reshape the input into patches
+        # Rearrange the input into patches of size (batch_size, num_patches, patch_size * patch_size * in_channels)
+        x = x.view(
+            batch_size,
+            channels,
+            height // self.patch_size,
+            self.patch_size,
+            width // self.patch_size,
+            self.patch_size,
+        )
+        x = x.permute(
+            0, 2, 4, 1, 3, 5
+        ).contiguous()  # Bring channels to the right place
+        x = x.view(
+            batch_size, -1, self.patch_size * self.patch_size * channels
+        )  # Flatten patches
+
+        # Step 2: Linear projection of each patch
+        x = self.projection(x)  # Shape: [batch_size, num_patches, embed_dim]
+
+        return x
+
+
+if __name__ == "__main__":
+    from torchinfo import summary
+
+    cnn = PatchEmbeddingCNN()
+    print(summary(cnn, input_size=(16, 3, 224, 224)))
+    linear = PatchEmbeddingLinear()
+    print(summary(linear, input_size=(16, 3, 224, 224)))
