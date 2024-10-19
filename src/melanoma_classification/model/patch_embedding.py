@@ -20,13 +20,13 @@ class PatchEmbeddingCNN(nn.Module):
         Args:
             img_size: Size of the input image.
             in_channels: Number of input channels.
-            patch_size: Size of a single patch. A patch will have the dimensions
-                (in_channels, patch_size, patch_size).
+            patch_size: Size of a single patch. A patch will have the
+                dimensions. (in_channels, patch_size, patch_size)
             embed_dim: Size of the output embedding vector. Generally, the rule
                 is in_channels * patch_size * patch_size.
         """
-
         super(PatchEmbeddingCNN, self).__init__()
+        
         self.img_size = img_size
         self.patch_size = patch_size
 
@@ -90,10 +90,7 @@ class PatchEmbeddingLinear(nn.Module):
         self.embed_dim = embed_dim
 
         self.num_patches = (img_size // patch_size) ** 2
-        self.projection = nn.Linear(
-            patch_size * patch_size * in_channels,
-            embed_dim
-        )
+        self.projection = nn.Linear(patch_size * patch_size * in_channels, embed_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass
@@ -132,8 +129,27 @@ class PatchEmbeddingLinear(nn.Module):
 
 if __name__ == "__main__":
     from torchinfo import summary
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    cnn = PatchEmbeddingCNN()
-    print(summary(cnn, input_size=(16, 3, 224, 224)))
+    cnn = PatchEmbeddingCNN().to(device)
+    summary(cnn, input_size=(16, 3, 224, 224))
     linear = PatchEmbeddingLinear()
-    print(summary(linear, input_size=(16, 3, 224, 224)))
+    summary(linear, input_size=(16, 3, 224, 224))
+
+    # Test forwad & backward pass for CNN patch embedding
+    cnn.train()
+    input_tensor = torch.randn(16, 3, 224, 224).to(device)
+    output = cnn(input_tensor)
+    target = torch.randn_like(output)
+    loss_fn = nn.MSELoss()
+    loss = loss_fn(output, target)
+    loss.backward()
+
+    # Test forwad & backward pass for linear patch embedding
+    linear.train()
+    input_tensor = torch.randn(16, 3, 224, 224).to(device)
+    output = linear(input_tensor)
+    target = torch.randn_like(output)
+    loss_fn = nn.MSELoss()
+    loss = loss_fn(output, target)
+    loss.backward()

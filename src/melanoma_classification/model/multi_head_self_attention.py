@@ -4,18 +4,18 @@ import math
 
 
 class MultiHeadSelfAttention(nn.Module):
-    def __init__(self, embed_dim: int, num_heads: int) -> None:
-        """Multi-head Self-Attention module (MHSA)
+    """Multi-head Self-Attention (MHSA)"""
+
+    def __init__(self, embed_dim: int = 768, num_heads: int = 8):
+        """Constructor
 
         The input tensor is split into num_heads, and the attention scores are
         computed for each head.
 
-        Parameters
-        ----------
-        embed_dim : int
-            The size of the input embedding
-        num_heads : int
-            The number of attention heads https://paperswithcode.com/method/multi-head-attention
+        Args:
+            embed_dim: The size of the input embedding
+            num_heads: The number of attention heads. For more information, see
+                https://paperswithcode.com/method/multi-head-attention.
         """
         super(MultiHeadSelfAttention, self).__init__()
 
@@ -36,7 +36,6 @@ class MultiHeadSelfAttention(nn.Module):
 
         self.fc_out = nn.Linear(embed_dim, embed_dim)
 
-
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass
 
@@ -49,14 +48,10 @@ class MultiHeadSelfAttention(nn.Module):
 
         Attention(Q, K, V) = softmax(\frac{QK^T}{\sqrt{d_k}})V
 
-        Parameters
-        ----------
-        x : torch.Tensor
-            Input tensor (B, Number Patches, embed_dim)
+        Args:
+            x: Input tensor (B, Number Patches, embed_dim)
 
-        Returns
-        -------
-        torch.Tensor
+        Returns:
             Output tensor (B, Number Patches, embed_dim)
         """
 
@@ -71,7 +66,7 @@ class MultiHeadSelfAttention(nn.Module):
 
         # Transpose to get dimensions (B, num_heads, N, head_dim)
         query = query.transpose(1, 2)
-        key = key.transpose(1, 2) # Why do we transpose here? B, num_heads, N, head_dim
+        key = key.transpose(1, 2)  # TODO: Why do we transpose here? B, num_heads, N, head_dim
         value = value.transpose(1, 2)
 
         # Compute the attention scores
@@ -86,5 +81,20 @@ class MultiHeadSelfAttention(nn.Module):
         out = self.fc_out(out)
 
         return out
-    
 
+
+if __name__ == "__main__":
+    from torchinfo import summary
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    mhsa = MultiHeadSelfAttention().to(device)
+    summary(mhsa, input_size=(16, 196, 768))
+
+    # Test forwad & backward pass for mhsa
+    mhsa.train()
+    input_tensor = torch.randn(16, 196, 768).to(device)
+    output = mhsa(input_tensor)
+    target = torch.randn_like(output)
+    loss_fn = nn.MSELoss()
+    loss = loss_fn(output, target)
+    loss.backward()
