@@ -23,7 +23,7 @@ class DermMel(Dataset):
         
         self.root_dir = root_dir
         self.split = split
-        self.transform = transform()
+        self.transform = transform
         
         # Define the subdirectories for each class (Melanoma, NotMelanoma)
         self.classes = ['Melanoma', 'NotMelanoma']
