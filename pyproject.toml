@@ -19,11 +19,11 @@ dependencies = [
     "typer==0.12.5",
     "torch==2.5",
     "torchvision==0.20.0",
-    "torchinfo==1.8.0"
+    "torchinfo==1.8.0",
 ]
 
 [project.optional-dependencies]
-dev = []
+train = ["matplotlib", "ipykernel", "scikit-learn", "pandas"]
 
 [project.scripts]
 your-cli-tool = "melanoma_classification.__main__:app"
