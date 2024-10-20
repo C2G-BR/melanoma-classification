@@ -80,7 +80,7 @@ class MultiHeadSelfAttention(nn.Module):
         # Apply the final linear layer
         out = self.fc_out(out)
 
-        return out
+        return out, attention
 
 
 if __name__ == "__main__":

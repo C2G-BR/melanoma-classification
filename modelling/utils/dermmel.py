@@ -6,6 +6,8 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+from melanoma_classification.utils import production_transform
+
 class DermMel(Dataset):
 
     def __init__(self, root_dir:str, split:str='train_sep', transform:any=None) -> None:
@@ -24,6 +26,7 @@ class DermMel(Dataset):
         self.root_dir = root_dir
         self.split = split
         self.transform = transform
+        self.prod_transform = production_transform()
         
         # Define the subdirectories for each class (Melanoma, NotMelanoma)
         self.classes = ['Melanoma', 'NotMelanoma']
@@ -66,8 +69,10 @@ class DermMel(Dataset):
         label = self.labels[idx]
         
         # Apply transformations
-        if self.transform:
+        if self.transform and torch.rand(1) > 0.5:
             image = self.transform(image)
+        else:
+            image = self.prod_transform(image)
         
         return image, label
     

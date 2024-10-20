@@ -96,14 +96,16 @@ class VisionTransformer(nn.Module):
         x = self.dropout(x)
 
         # Pass through transformer layers
+        attention_maps = [] # TODO: Enable only during inference.
         for layer in self.transformer_layers:
-            x = layer(x)
+            x, attention = layer(x)
+            attention_maps.append(attention)
 
         # Normalize the [CLS] token
         cls_output = self.norm(x[:, 0])  # Extract the [CLS] token output
 
         # Pass through classifier
-        return self.classifier(cls_output)
+        return self.classifier(cls_output), attention_maps
     
     def get_embedding_dimension(self) -> int:
         """Retrieves embedding dimension

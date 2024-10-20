@@ -56,7 +56,8 @@ class TransformerEncoderLayer(nn.Module):
         """
 
         # Currently, we use post-norm:
-        x = x + self.mhsa(x)
+        x2, attention = self.mhsa(x)
+        x = x + x2
         x = self.norm1(x)
 
         x = x + self.mlp(x)
@@ -66,7 +67,7 @@ class TransformerEncoderLayer(nn.Module):
         # x = x + self.mhsa(self.norm1(x))
         # x = x + self.mlp(self.norm2(x))
 
-        return x
+        return x, attention
     
 if __name__ == "__main__":
     from torchinfo import summary
