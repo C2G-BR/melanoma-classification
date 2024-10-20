@@ -71,6 +71,7 @@ class VisionTransformer(nn.Module):
 
         # Define the classification heads (initially set for num_classes)
         self.classifier = nn.Linear(embed_dim, num_classes)
+        self.classes = {} # Map from class index to label.
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass
