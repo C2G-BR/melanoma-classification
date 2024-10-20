@@ -40,6 +40,8 @@ class VisionTransformer(nn.Module):
         """
         super(VisionTransformer, self).__init__()
 
+        self.embed_dim = embed_dim
+
         self.patch_embedding = PatchEmbeddingCNN(
             img_size=img_size,
             patch_size=patch_size,
@@ -48,10 +50,10 @@ class VisionTransformer(nn.Module):
         )
 
         # Random initialize cls token
-        self.cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))
+        self.cls_token = nn.Parameter(torch.randn(1, 1, self.embed_dim))
 
         self.pos_embed = nn.Parameter(
-            torch.randn(1, 1 + self.patch_embedding.num_patches, embed_dim)
+            torch.randn(1, 1 + self.patch_embedding.num_patches, self.embed_dim)
         )
 
         self.dropout = nn.Dropout(dropout)
@@ -59,7 +61,7 @@ class VisionTransformer(nn.Module):
         self.transformer_layers = nn.ModuleList(
             [
                 TransformerEncoderLayer(
-                    embed_dim=embed_dim, num_heads=num_heads, dropout=dropout
+                    embed_dim=self.embed_dim, num_heads=num_heads, dropout=dropout
                 )
                 for _ in range(depth)
             ]
@@ -101,8 +103,13 @@ class VisionTransformer(nn.Module):
 
         # Pass through classifier
         return self.classifier(cls_output)
+    
+    def get_embedding_dimension(self) -> int:
+        """Retrieves embedding dimension
+        """
+        return self.embed_dim
 
-    def set_classifier(self, num_classes: int) -> None:
+    def set_classifier(self, num_classes: int) -> None: # TODO: Maybe remove?
         """Dynamically replace the classifier
 
         Args:
@@ -204,6 +211,7 @@ class VisionTransformer(nn.Module):
         This will prevent any gradients from being calculated for the backbone,
         effectively freezing it during training.
         """
+
         # Freeze patch embedding parameters
         for param in self.patch_embedding.parameters():
             param.requires_grad = False
@@ -216,6 +224,8 @@ class VisionTransformer(nn.Module):
         # Optionally, freeze the positional embeddings and CLS token
         self.cls_token.requires_grad = False
         self.pos_embed.requires_grad = False
+        for param in self.norm.parameters():
+            param.requires_grad = False
     
     def unfreeze(self):
         """Unfreeze the backbone (patch embeddings and transformer layers) of
@@ -236,6 +246,56 @@ class VisionTransformer(nn.Module):
         # Optionally, unfreeze the positional embeddings and CLS token
         self.cls_token.requires_grad = True
         self.pos_embed.requires_grad = True
+        for param in self.norm.parameters():
+            param.requires_grad = True
+    
+    def unfreeze_sequentially(self):
+        unfroze_layer = False
+        
+        # Unfreeze norm
+        for param in self.norm.parameters():
+            if not param.requires_grad:
+                param.requires_grad = True
+                unfroze_layer = True
+            
+        if unfroze_layer:
+            print("Unfroze norm.")
+            return
+
+        # Unfreeze encoder block
+        for layer in reversed(self.transformer_layers):
+            for param in layer.parameters():
+                if not param.requires_grad:
+                    param.requires_grad = True
+                    unfroze_layer = True
+                
+            if unfroze_layer:
+                print("Unfroze layer of transformers.")
+                return
+        
+        # TODO: Open question: how to handle dropout
+
+        # Unfreeze pos_emb
+        if not self.pos_embed.requires_grad:
+            self.pos_embed.requires_grad = True
+            print("Unfroze positional embedding.")
+            return
+    
+        # Unfreeze cls_token
+        if not self.cls_token.requires_grad:
+            self.cls_token.requires_grad = True
+            print("Unfroze cls_token.")
+            return
+        
+        # Unfreeze patch_embedding
+        for param in self.patch_embedding.parameters():
+            if not param.requires_grad:
+                param.requires_grad = True
+                unfroze_layer = True
+
+        if unfroze_layer:
+            print("Unfroze patch_embedding.")
+        
 
 if __name__ == "__main__":
     from torchinfo import summary

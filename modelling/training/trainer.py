@@ -56,7 +56,7 @@ def train(
     val_loader: DataLoader,
     criterion: nn.Module,
     optimizer: optim.Optimizer,
-    scheduler: optim.lr_scheduler._LRScheduler,
+    scheduler: optim.lr_scheduler.ReduceLROnPlateau,
     num_epochs: int,
     device: torch.device,
     checkpoint_path: Path,
@@ -93,8 +93,9 @@ def train(
 
     # Start/continue training
     for epoch in range(start_epoch, num_epochs):
-        if epoch == freezed_epochs and freezed_epochs != 0:
-            model.unfreeze()
+        if epoch >= freezed_epochs and freezed_epochs != 0:
+            model.unfreeze_sequentially()
+            model.unfreeze_sequentially()
         
         model.train()
         running_loss = 0.0
@@ -122,7 +123,11 @@ def train(
             predicted = torch.argmax(outputs, 1)
             total_predictions += labels.size(0)
             true_positives += (predicted == labels).sum().item()
-
+ 
+            # We used this to identify, that our model switched too aggressively
+            # between two classes
+            # print(predicted.sum() / labels.size(0), labels.sum() / labels.size(0))
+            
             # Store true labels and predictions for F1 calculation
             y_true_train.extend(labels.cpu().numpy())
             y_pred_train.extend(predicted.cpu().numpy())
@@ -188,7 +193,7 @@ def train(
         val_recall = recall_score(y_true_val, y_pred_val, average="binary")
 
         # Learning rate scheduling
-        scheduler.step()
+        scheduler.step(val_loss)
 
         # Append metrics to DataFrame
         new_row = {

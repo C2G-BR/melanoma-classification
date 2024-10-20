@@ -36,5 +36,15 @@ Backbone von 3. Training mit Classifier von 1. Training
 
 Make Model Great Again:
 - deactivat dropout
-- more complex classifier
+
+Todos:
+1. Check predictions
+2. Increase Classifier Complexity
+3. Learning Rate (different learning rates)
+4. Sequentielles unfreezes
+5. Different Scheduler
+from torch.optim.lr_scheduler import ReduceLROnPlateau
+scheduler = ReduceLROnPlateau(optimizer, mode='min', patience=3, factor=0.1)
+
+If Works:
 - store complete weights
