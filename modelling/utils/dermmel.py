@@ -11,16 +11,12 @@ from melanoma_classification.utils import production_transform
 class DermMel(Dataset):
 
     def __init__(self, root_dir:str, split:str='train_sep', transform:any=None) -> None:
-        """Initialize the dataset
+        """Constructor for the DermMel dataset.
 
-        Parameters
-        ----------
-        root_dir : str
-            The root directory of the dataset
-        split : str, optional
-            The split to load (train_sep, valid, test), by default 'train_sep'
-        transform : any, optional
-            The transformations to apply to the images, by default None
+        Args:
+            root_dir: The root directory of the dataset.
+            split: The split to load (train_sep, valid, test).
+            transform: The transformations to apply to the images.
         """
         
         self.root_dir = root_dir
@@ -44,19 +40,21 @@ class DermMel(Dataset):
                     self.labels.append(label)
 
     def __len__(self) -> int:
+        """Get the number of images in the dataset.
+
+        Returns:
+            The number of images in the dataset.
+        """
         return len(self.image_paths)
     
     def __getitem__(self, idx:int) -> tuple[torch.Tensor, int]:
-        """Get an image and its label
+        """Get an image and its label.
 
-        Parameters
-        ----------
-        idx : int
-            The index of the image to retrieve
-        Returns
-        -------
-        tuple[torch.Tensor, int]
-            The image and its label
+        Args:
+            idx: The index of the image to retrieve.
+        
+        Returns:
+            The image and its label.
         """
         if torch.is_tensor(idx):
             idx = idx.tolist()
@@ -68,22 +66,18 @@ class DermMel(Dataset):
         # Get the label
         label = self.labels[idx]
         
-        # Apply transformations
-        if self.transform and torch.rand(1) > 0.5:
-            image = self.transform(image)
-        else:
-            image = self.prod_transform(image)
+        # Apply transformations using albumentations
+        if self.transform:
+            image = self.transform(image=np.array(image))["image"]
         
         return image, label
     
     def visualize_image(self, idx: int) -> None:
-        """
-        Visualize an image and its corresponding label from the DermMel dataset.
+        """Visualize an image and its corresponding label from the DermMel
+        dataset.
 
-        Parameters
-        ----------
-        idx : int
-            The index of the image to visualize
+        Args:
+            idx: The index of the image to visualize.
         """
         # Get the image and label
         image, label = self[idx]
