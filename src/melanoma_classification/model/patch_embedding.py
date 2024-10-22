@@ -26,7 +26,7 @@ class PatchEmbeddingCNN(nn.Module):
                 is in_channels * patch_size * patch_size.
         """
         super(PatchEmbeddingCNN, self).__init__()
-        
+
         self.img_size = img_size
         self.patch_size = patch_size
 
@@ -90,7 +90,9 @@ class PatchEmbeddingLinear(nn.Module):
         self.embed_dim = embed_dim
 
         self.num_patches = (img_size // patch_size) ** 2
-        self.projection = nn.Linear(patch_size * patch_size * in_channels, embed_dim)
+        self.projection = nn.Linear(
+            patch_size * patch_size * in_channels, embed_dim
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass
@@ -129,6 +131,7 @@ class PatchEmbeddingLinear(nn.Module):
 
 if __name__ == "__main__":
     from torchinfo import summary
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     cnn = PatchEmbeddingCNN().to(device)

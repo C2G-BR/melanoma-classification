@@ -36,3 +36,6 @@ where = ["src"]
 
 [project.urls]
 "Homepage" = "https://github.com/C2G-BR/melanoma-classification"
+
+[tool.ruff]
+line-length = 80
