@@ -1,99 +1,95 @@
+import math
 import torch
 import torch.nn as nn
-import math
 
 
 class MultiHeadSelfAttention(nn.Module):
-    """Multi-head Self-Attention (MHSA)"""
+    """Multi-head Self-Attention (MHSA)
 
-    def __init__(self, embed_dim: int = 768, num_heads: int = 8):
+    The input tensor is split into num_heads, and the attention scores are
+    computed for each head. Please see
+    https://paperswithcode.com/method/multi-head-attention for more information.
+    """
+
+    def __init__(self, embed_dim: int, num_heads: int):
         """Constructor
 
-        The input tensor is split into num_heads, and the attention scores are
-        computed for each head.
-
         Args:
-            embed_dim: The size of the input embedding
-            num_heads: The number of attention heads. For more information, see
-                https://paperswithcode.com/method/multi-head-attention.
+            embed_dim: The size of the input embedding (E).
+            num_heads: The number of attention heads (A). A is assumed to be
+                exactly divisible by E.
         """
         super(MultiHeadSelfAttention, self).__init__()
 
-        self.embed_dim = embed_dim
-        self.num_heads = num_heads
-        self.head_dim = embed_dim // num_heads
-        self.scale = math.sqrt(self.head_dim)
+        self._embed_dim = embed_dim
+        self._num_heads = num_heads
 
-        # Check if embed_dim is divisible by num_heads
-        assert (
-            self.head_dim * num_heads == embed_dim
-        ), "embed_dim must be divisible by num_heads"
+        self._head_dim = self._embed_dim // self._num_heads
+        self._scale = math.sqrt(self._head_dim)
 
-        # TODO: can we optimize q,k,v computation by using a single NN
-        self.query = nn.Linear(embed_dim, embed_dim)
-        self.key = nn.Linear(embed_dim, embed_dim)
-        self.value = nn.Linear(embed_dim, embed_dim)
+        self._query = nn.Linear(self._embed_dim, self._embed_dim)
+        self._key = nn.Linear(self._embed_dim, self._embed_dim)
+        self._value = nn.Linear(self._embed_dim, self._embed_dim)
+        self._fc_out = nn.Linear(self._embed_dim, self._embed_dim)
 
-        self.fc_out = nn.Linear(embed_dim, embed_dim)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward pass
 
-        - Query (Q) represents the current token/patch's embedding that we
-        want to calculate attention for
-        - Key (K) represents all tokens/patches against which attention is
-        calculated
-        - Value (V) is the information we ultimately want to aggregate based on
-        attention scores
+        P - Number of Patches
+        D - Head Dimension: E // A
+        Q - Query: Represents the embedding of the current token/patch that
+            attention is calculated for.
+        K - Key: Represents all tokens/patches against which attention is
+            calculated.
+        V - Value: Information we ultimately want to aggregate based on
+            attention scores.
 
-        Attention(Q, K, V) = softmax(\frac{QK^T}{\sqrt{d_k}})V
+        Attention(Q, K, V) = softmax(\\frac{QK^T}{\\sqrt{d_k}})V
 
         Args:
-            x: Input tensor (B, Number Patches, embed_dim)
+            x: Input tensor (B, P, E).
 
         Returns:
-            Output tensor (B, Number Patches, embed_dim)
+            [0]: Output tensor (B, P, E).
+            [1]: Attention (B, A, P, P).
         """
 
-        B, N, _ = x.size()
+        B, P, _ = x.size()
 
-        # Split the embed_dim into num_heads
-        # TODO: Maybe rather reshape
+        # Output Dimension: (B, P, A, D)
+        query = self._query(x).view(B, P, self._num_heads, self._head_dim)
+        key = self._key(x).view(B, P, self._num_heads, self._head_dim)
+        value = self._value(x).view(B, P, self._num_heads, self._head_dim)
 
-        query = self.query(x).view(B, N, self.num_heads, self.head_dim)
-        key = self.key(x).view(B, N, self.num_heads, self.head_dim)
-        value = self.value(x).view(B, N, self.num_heads, self.head_dim)
-
-        # Transpose to get dimensions (B, num_heads, N, head_dim)
+        # Output Dimension: (B, A, P, D)
         query = query.transpose(1, 2)
-        key = key.transpose(1, 2)  # TODO: Why do we transpose here? B, num_heads, N, head_dim
+        key = key.transpose(1, 2)
         value = value.transpose(1, 2)
 
-        # Compute the attention scores
-        scores = torch.matmul(query, key.transpose(-2, -1)) / self.scale
-        attention = torch.softmax(scores, dim=-1)
+        attention = torch.softmax(
+            torch.matmul(query, key.transpose(-2, -1)) / self._scale, dim=-1
+        )  # (B, A, P, P)
 
         # Compute the weighted sum of values
-        out = torch.matmul(attention, value)
-        out = out.transpose(1, 2).reshape(B, N, self.embed_dim)
-
-        # Apply the final linear layer
-        out = self.fc_out(out)
+        out = torch.matmul(attention, value)  # (B, A, P, D)
+        out = out.transpose(1, 2).reshape(B, P, self._embed_dim)  # (B, P, E)
+        out = self._fc_out(out)  # (B, P, E)
 
         return out, attention
 
 
 if __name__ == "__main__":
+    from melanoma_classification.utils import get_device
     from torchinfo import summary
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    mhsa = MultiHeadSelfAttention().to(device)
+    device = get_device()
+
+    # Test MHSA
+    mhsa = MultiHeadSelfAttention(embed_dim=768, num_heads=8).to(device)
     summary(mhsa, input_size=(16, 196, 768))
-
-    # Test forwad & backward pass for mhsa
     mhsa.train()
     input_tensor = torch.randn(16, 196, 768).to(device)
-    output = mhsa(input_tensor)
+    output, _ = mhsa(input_tensor)
     target = torch.randn_like(output)
     loss_fn = nn.MSELoss()
     loss = loss_fn(output, target)

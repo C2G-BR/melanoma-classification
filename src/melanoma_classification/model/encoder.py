@@ -5,6 +5,7 @@ from melanoma_classification.model.multi_head_self_attention import (
     MultiHeadSelfAttention,
 )
 
+
 class TransformerEncoderLayer(nn.Module):
     """Transformer Encoder Layer
 
@@ -16,28 +17,36 @@ class TransformerEncoderLayer(nn.Module):
 
     def __init__(
         self,
-        embed_dim: int = 768,
-        num_heads: int = 12,
-        mlp_ratio: float = 4.0,
-        dropout: float = 0.1,
+        embed_dim: int,
+        num_heads: int,
+        mlp_ratio: float,
+        dropout: float,
+        norm: str,
     ):
         """Constructor
 
         Args:
-            embed_dim: The size of the input embedding.
-            num_heads: The number of attention heads.
+            embed_dim: The size of the input embedding (E).
+            num_heads: The number of attention heads (A).
             mlp_ratio: The ratio of the hidden dimension of the MLP to the input
                 embedding.
             dropout: The dropout probability.
+            norm: The way normalization is applied. Either "pre" or "post".
         """
         super(TransformerEncoderLayer, self).__init__()
 
-        self.mhsa = MultiHeadSelfAttention(embed_dim, num_heads)
+        norm = norm.lower()
+        if norm == "pre":
+            self._norm = self._pre_norm
+        elif norm == "post":
+            self._norm = self._post_norm
+        else:
+            raise ValueError(f"Unknown normalization technique '{norm}'.")
 
-        self.norm1 = nn.LayerNorm(embed_dim)
-        self.norm2 = nn.LayerNorm(embed_dim)
-
-        self.mlp = nn.Sequential(
+        self._mhsa = MultiHeadSelfAttention(embed_dim, num_heads)
+        self._norm1 = nn.LayerNorm(embed_dim)
+        self._norm2 = nn.LayerNorm(embed_dim)
+        self._mlp = nn.Sequential(
             nn.Linear(embed_dim, int(embed_dim * mlp_ratio)),
             nn.GELU(),
             nn.Dropout(dropout),
@@ -45,38 +54,47 @@ class TransformerEncoderLayer(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass
-
-        Args:
-            x: Input tensor. (B, Num Patches, embed_dim)
-
-        Returns:
-            Output tensor. (B, Num Patches, embed_dim)
-        """
-
-        # Currently, we use post-norm:
-        x2, attention = self.mhsa(x)
-        x = x + x2
-        x = self.norm1(x)
-
-        x = x + self.mlp(x)
-        x = self.norm2(x)
-
-        # Alternatively, one could use pre-norm
-        # x = x + self.mhsa(self.norm1(x))
-        # x = x + self.mlp(self.norm2(x))
+    def _pre_norm(self, x) -> tuple[torch.Tensor, torch.Tensor]:
+        x2, attention = self._mhsa(self._norm1(x))  # (B, P, E), (B, A, P, P)
+        x = x + x2  # (B, P, E)
+        x = x + self._mlp(self._norm2(x))  # (B, P, E)
 
         return x, attention
     
+    def _post_norm(self, x) -> tuple[torch.Tensor, torch.Tensor]:
+        x2, attention = self._mhsa(x)  # (B, P, E), (B, A, P, P)
+        x = x + x2  # (B, P, E)
+        x = x + self._mlp(self._norm1(x))  # (B, P, E)
+        x = self._norm2(x)  # (B, P, E)
+
+        return x, attention
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward pass
+
+        P - Number of Patches
+
+        Args:
+            x: Input tensor (B, P, E).
+
+        Returns:
+            [0]: Output tensor (B, P, E).
+            [1]: Attention (B, A, P, P).
+        """
+        return self._norm(x)
+
+
 if __name__ == "__main__":
+    from melanoma_classification.utils import get_device
     from torchinfo import summary
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    encoder = TransformerEncoderLayer().to(device)
+    device = get_device()
+
+    # Test Transformer Encoder Layer
+    encoder = TransformerEncoderLayer(
+        embed_dim=768, num_heads=12, mlp_ratio=4.0, dropout=0.5, norm="post"
+    ).to(device)
     summary(encoder, input_size=(16, 196, 768))
-
-    # Test forwad & backward pass for transformer encoder layer.
     encoder.train()
     input_tensor = torch.randn(16, 196, 768).to(device)
     output = encoder(input_tensor)
