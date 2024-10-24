@@ -108,7 +108,7 @@ def create_evaluation_report(
         image = image.to(device)
         label = label.to(device)
         with torch.no_grad():
-            output, _ = model(image)
+            output = model(image)["outputs"]
         _, predicted = torch.max(output, 1)
         model.classes
         results.append({

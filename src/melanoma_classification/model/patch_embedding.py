@@ -125,7 +125,7 @@ if __name__ == "__main__":
 
     # Test CNN Embedding
     cnn = PatchEmbeddingCNN(in_channels=3, patch_size=16).to(device)
-    summary(cnn, input_size=(16, 3, 224, 224))
+    summary(cnn, input_size=(16, 3, 224, 224), device=device)
     cnn.train()
     input_tensor = torch.randn(16, 3, 224, 224).to(device)
     output = cnn(input_tensor)
@@ -135,8 +135,8 @@ if __name__ == "__main__":
     loss.backward()
 
     # Test Linear Embedding
-    linear = PatchEmbeddingLinear(in_channels=3, patch_size=16)
-    summary(linear, input_size=(16, 3, 224, 224))
+    linear = PatchEmbeddingLinear(in_channels=3, patch_size=16).to(device)
+    summary(linear, input_size=(16, 3, 224, 224), device=device)
     linear.train()
     input_tensor = torch.randn(16, 3, 224, 224).to(device)
     output = linear(input_tensor)

@@ -5,6 +5,7 @@ from melanoma_classification.model.multi_head_self_attention import (
     MultiHeadSelfAttention,
 )
 
+from typing import Tuple, Optional
 
 class TransformerEncoderLayer(nn.Module):
     """Transformer Encoder Layer
@@ -54,19 +55,23 @@ class TransformerEncoderLayer(nn.Module):
             nn.Dropout(dropout),
         )
 
-    def _pre_norm(self, x) -> tuple[torch.Tensor, torch.Tensor]:
+    def _pre_norm(self, x) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         x2, attention = self._mhsa(self._norm1(x))  # (B, P, E), (B, A, P, P)
         x = x + x2  # (B, P, E)
         x = x + self._mlp(self._norm2(x))  # (B, P, E)
 
+        if self.training:
+            return x, None
         return x, attention
     
-    def _post_norm(self, x) -> tuple[torch.Tensor, torch.Tensor]:
+    def _post_norm(self, x) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         x2, attention = self._mhsa(x)  # (B, P, E), (B, A, P, P)
         x = x + x2  # (B, P, E)
         x = x + self._mlp(self._norm1(x))  # (B, P, E)
         x = self._norm2(x)  # (B, P, E)
 
+        if self.training:
+            return x, None
         return x, attention
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -94,10 +99,10 @@ if __name__ == "__main__":
     encoder = TransformerEncoderLayer(
         embed_dim=768, num_heads=12, mlp_ratio=4.0, dropout=0.5, norm="post"
     ).to(device)
-    summary(encoder, input_size=(16, 196, 768))
+    summary(encoder, input_size=(16, 196, 768), device=device)
     encoder.train()
     input_tensor = torch.randn(16, 196, 768).to(device)
-    output = encoder(input_tensor)
+    output, _ = encoder(input_tensor)
     target = torch.randn_like(output)
     loss_fn = nn.MSELoss()
     loss = loss_fn(output, target)

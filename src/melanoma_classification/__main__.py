@@ -137,7 +137,9 @@ def predict(model_path: Path, img_path: Path):
     model.to(device=get_device())
     model.eval()
     with torch.no_grad():
-        logits, attention = model(image)
+        model_outputs = model(image)
+        logits = model_outputs["outputs"]
+        attention = model_outputs["attentions"]
         logits = torch.nn.functional.softmax(logits, 1)
         confidence, prediction = torch.max(logits, dim=1)
         confidence, prediction = confidence.item(), prediction.item()

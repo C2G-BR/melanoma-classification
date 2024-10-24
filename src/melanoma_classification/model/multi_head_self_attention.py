@@ -2,6 +2,7 @@ import math
 import torch
 import torch.nn as nn
 
+from typing import Tuple, Optional
 
 class MultiHeadSelfAttention(nn.Module):
     """Multi-head Self-Attention (MHSA)
@@ -32,7 +33,10 @@ class MultiHeadSelfAttention(nn.Module):
         self._value = nn.Linear(self._embed_dim, self._embed_dim)
         self._fc_out = nn.Linear(self._embed_dim, self._embed_dim)
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, 
+        x: torch.Tensor
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
         """Forward pass
 
         P - Number of Patches
@@ -51,7 +55,7 @@ class MultiHeadSelfAttention(nn.Module):
 
         Returns:
             [0]: Output tensor (B, P, E).
-            [1]: Attention (B, A, P, P).
+            [1]: Attention (B, A, P, P) during eval mode.
         """
 
         B, P, _ = x.size()
@@ -75,6 +79,8 @@ class MultiHeadSelfAttention(nn.Module):
         out = out.transpose(1, 2).reshape(B, P, self._embed_dim)  # (B, P, E)
         out = self._fc_out(out)  # (B, P, E)
 
+        if self.training:
+            return out, None
         return out, attention
 
 
@@ -86,7 +92,7 @@ if __name__ == "__main__":
 
     # Test MHSA
     mhsa = MultiHeadSelfAttention(embed_dim=768, num_heads=8).to(device)
-    summary(mhsa, input_size=(16, 196, 768))
+    summary(mhsa, input_size=(16, 196, 768), device=device)
     mhsa.train()
     input_tensor = torch.randn(16, 196, 768).to(device)
     output, _ = mhsa(input_tensor)
