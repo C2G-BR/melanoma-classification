@@ -5,6 +5,7 @@ from melanoma_classification.model.encoder import TransformerEncoderLayer
 from melanoma_classification.model.patch_embedding import (
     PatchEmbeddingCNN,
     PatchEmbeddingLinear,
+    PatchEmbeddingProtocol,
 )
 
 from collections import OrderedDict
@@ -64,12 +65,14 @@ class VisionTransformer(nn.Module):
 
         embedding = embedding.lower()
         if embedding == "cnn":
-            self._patch_embedding = PatchEmbeddingCNN(
+            self._patch_embedding: PatchEmbeddingProtocol = PatchEmbeddingCNN(
                 in_channels=in_channels, patch_size=patch_size
             )
         elif embedding == "linear":
-            self._patch_embedding = PatchEmbeddingLinear(
-                in_channels=in_channels, patch_size=patch_size
+            self._patch_embedding: PatchEmbeddingProtocol = (
+                PatchEmbeddingLinear(
+                    in_channels=in_channels, patch_size=patch_size
+                )
             )
         else:
             raise ValueError(f"Unknown embedding technique '{embedding}'.")
