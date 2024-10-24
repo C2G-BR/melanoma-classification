@@ -6,3 +6,6 @@ modelling/checkpoints
 data/*
 
 .venv/
+
+# MacOS
+.DS_Store

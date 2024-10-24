@@ -9,7 +9,7 @@ from melanoma_classification.model.patch_embedding import (
 )
 
 from collections import OrderedDict
-
+from typing import Tuple, List, Optional, Dict, Union
 
 class VisionTransformer(nn.Module):
     """Vision Transformer (ViT) Model for Image Classification
@@ -101,7 +101,7 @@ class VisionTransformer(nn.Module):
 
     def forward(
         self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, list[torch.Tensor]]:
+    ) -> Dict[str, Union[torch.Tensor, Optional[List[torch.Tensor]]]]:
         """Forward pass
 
         P - Number of Patches
@@ -110,8 +110,9 @@ class VisionTransformer(nn.Module):
             x: Input images as a tensor (B, C, H, W).
 
         Returns:
-            [0]: Output tensor (B, N).
-            [1]: Attention list (B, A, P+1, P+1).
+            ["outputs"]: Output tensor (B, N).
+            ["attentions"]: Attention list (B, A, P+1, P+1) if model in eval
+                mode.
         """
         B = x.size(0)
 
@@ -123,14 +124,20 @@ class VisionTransformer(nn.Module):
         x = x + self._pos_embed  # (B, P+1, E)
         x = self._dropout(x)  # (B, P+1, E)
 
-        attention_maps = []
+        attention_maps = [] if not self.training else None
         for layer in self._transformer_layers:
             x, attention = layer(x)  # (B, P+1, E), (B, A, P+1, P+1)
-            attention_maps.append(attention)
+            if attention_maps is not None:
+                attention_maps.append(attention)
 
         cls_token_output = self._norm(x[:, 0])  # (B, E)
-
-        return self._classifier(cls_token_output), attention_maps
+        
+        outputs = self._classifier(cls_token_output) # (B, N)
+    
+        return {
+            "outputs": outputs,
+            "attentions": attention_maps
+        }
 
     def load_pretrained_weights(
         self,
@@ -261,7 +268,7 @@ if __name__ == "__main__":
     summary(vit, input_size=(16, 3, 224, 224))
     vit.train()
     input_tensor = torch.randn(16, 3, 224, 224).to(device)
-    output = vit(input_tensor)
+    output = vit(input_tensor)["outputs"]
     target = torch.randn_like(output)
     loss_fn = nn.MSELoss()
     loss = loss_fn(output, target)
