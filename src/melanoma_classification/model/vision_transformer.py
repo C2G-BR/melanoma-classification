@@ -188,6 +188,7 @@ class VisionTransformer(nn.Module):
         This will allow gradients to be calculated for the backbone, making it
         trainable again.
         """
+
         for param in self.patch_embedding.parameters():
             param.requires_grad = True
 

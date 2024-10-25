@@ -10,49 +10,6 @@ from pathlib import Path
 from melanoma_classification.model.vision_transformer import VisionTransformer
 
 
-def save_checkpoint(
-    model: nn.Module,
-    optimizer: optim.Optimizer,
-    scheduler: optim.lr_scheduler._LRScheduler,
-    epoch: int,
-    checkpoint_path: str,
-    metrics_df: pd.DataFrame,
-) -> None:
-    """Saves the model, optimizer, and scheduler state.
-
-    Args:
-        model: The model to save.
-        optimizer: The optimizer to save.
-        scheduler: The scheduler to save.
-        epoch: The current epoch.
-        checkpoint_path: The path to save the checkpoint.
-        metrics_df: The DataFrame containing the metrics.
-    """
-
-    if not os.path.exists(checkpoint_path):
-        os.makedirs(checkpoint_path)
-
-    checkpoint_file = os.path.join(
-        checkpoint_path,
-        f"checkpoint_epoch_{epoch+1}.pth"
-    )
-
-    torch.save(
-        {
-            "epoch": epoch,
-            "model_state_dict": model.state_dict(),
-            "optimizer_state_dict": optimizer.state_dict(),
-            "scheduler_state_dict": scheduler.state_dict(),
-        },
-        checkpoint_file,
-    )
-
-    # Save metrics
-    metrics_df.to_csv(os.path.join(checkpoint_path, "metrics.csv"), index=False)
-
-    print(f"Checkpoint saved: {checkpoint_file}")
-
-
 def train(
     model: VisionTransformer,
     train_loader: DataLoader,
@@ -85,15 +42,12 @@ def train(
         checkpoint_model_file: The model checkpoint file to resume training.
         checkpoint_metrics_file: The metrics checkpoint file to resume training.
     """
+    checkpoint_path.mkdir(parents=True, exist_ok=True)
 
-    start_epoch = 0
-
-    # Load checkpoint if resuming training
     if checkpoint_model_file:
-        # Checkpoint contains model, optimizer, epoch, and scheduler
+        # Resuming Training
         checkpoint = torch.load(
-            checkpoint_path / checkpoint_model_file, 
-            weights_only=True
+            checkpoint_path / checkpoint_model_file, weights_only=True
         )
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
@@ -112,6 +66,8 @@ def train(
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         metrics_df = pd.read_csv(checkpoint_path / checkpoint_metrics_file)
     else:
+        # Beginning new Training
+        start_epoch = 0
         metrics_df = pd.DataFrame()
 
     if freezed_epochs > start_epoch:
@@ -119,18 +75,18 @@ def train(
 
     model.to(device)
 
-    # Start/continue training
+    # TRAINING
+    model.train()
     for epoch in range(start_epoch, num_epochs):
         if epoch >= freezed_epochs and freezed_epochs != 0:
             model.unfreeze_sequentially()
             model.unfreeze_sequentially()
-        
-        model.train()
+
         running_loss = 0.0
         true_positives = 0
         total_predictions = 0
-        y_true_train = []  # True labels
-        y_pred_train = []  # Predicted labels
+        y_true_train = []
+        y_pred_train = []
 
         for images, labels in (
             tbar := tqdm(
@@ -147,44 +103,31 @@ def train(
             optimizer.step()
             running_loss += loss.item()
 
-            # Predicitons & Metrics
             predicted = torch.argmax(outputs, 1)
             total_predictions += labels.size(0)
             true_positives += (predicted == labels).sum().item()
-            
-            # Store true labels and predictions for F1 calculation
+
             y_true_train.extend(labels.cpu().numpy())
             y_pred_train.extend(predicted.cpu().numpy())
 
-            # Update progress bar
             tbar.set_postfix(
                 loss=running_loss / total_predictions,
                 accuracy=100.0 * true_positives / total_predictions,
             )
 
-        # Calculate metrics for training set
         train_loss = running_loss / len(train_loader.dataset)
         train_acc = 100.0 * true_positives / total_predictions
+        train_f1 = f1_score(y_true_train, y_pred_train)
+        train_precision = precision_score(y_true_train, y_pred_train)
+        train_recall = recall_score(y_true_train, y_pred_train)
 
-        # Calculate precision, recall, F1-score
-        train_f1 = f1_score(
-            y_true_train, y_pred_train, average="binary"
-        )
-        train_precision = precision_score(
-            y_true_train, y_pred_train, average="binary"
-        )
-        train_recall = recall_score(
-            y_true_train, y_pred_train, average="binary"
-        )
-
-        # Prepare validation loop
+        # VALIDATION
         val_loss = 0.0
         correct = 0
         total = 0
         y_true_val = []
         y_pred_val = []
 
-        # Evaluation
         model.eval()
         with torch.no_grad():
             for images, labels in (
@@ -199,56 +142,58 @@ def train(
                 loss = criterion(outputs, labels)
                 val_loss += loss.item()
 
-                # Predictions & Metrics
                 predicted = torch.argmax(outputs, 1)
                 total += labels.size(0)
                 correct += (predicted == labels).sum().item()
 
-                # Store true labels and predictions for F1 calculation
                 y_true_val.extend(labels.cpu().numpy())
                 y_pred_val.extend(predicted.cpu().numpy())
 
-                # Update progress bar
                 vbar.set_postfix(
                     val_loss=val_loss / total,
-                    val_accuracy=100.0 * correct / total
+                    val_accuracy=100.0 * correct / total,
                 )
 
-        # Calculate metrics for validation set
         val_loss /= len(val_loader.dataset)
         val_acc = 100.0 * correct / total
+        val_f1 = f1_score(y_true_val, y_pred_val)
+        val_precision = precision_score(y_true_val, y_pred_val)
+        val_recall = recall_score(y_true_val, y_pred_val)
 
-        # Calculate precision, recall, F1-score for validation
-        val_f1 = f1_score(y_true_val, y_pred_val, average="binary")
-        val_precision = precision_score(
-            y_true_val, y_pred_val, average="binary"
-        )
-        val_recall = recall_score(y_true_val, y_pred_val, average="binary")
-
-        # Learning rate scheduling
         scheduler.step(val_loss)
 
-        # Append metrics to DataFrame
-        new_row = {
-            "epoch": epoch + 1,
-            "train_loss": train_loss,
-            "train_acc": train_acc,
-            "val_loss": val_loss,
-            "val_acc": val_acc,
-            "train_f1": train_f1,
-            "train_precision": train_precision,
-            "train_recall": train_recall,
-            "val_f1": val_f1,
-            "val_precision": val_precision,
-            "val_recall": val_recall,
-        }
-        metrics_df = pd.concat(
-            [metrics_df, pd.DataFrame([new_row])], ignore_index=True
+        new_row = pd.DataFrame(
+            [
+                {
+                    "epoch": epoch + 1,
+                    "train_loss": train_loss,
+                    "train_acc": train_acc,
+                    "val_loss": val_loss,
+                    "val_acc": val_acc,
+                    "train_f1": train_f1,
+                    "train_precision": train_precision,
+                    "train_recall": train_recall,
+                    "val_f1": val_f1,
+                    "val_precision": val_precision,
+                    "val_recall": val_recall,
+                }
+            ]
         )
-        del new_row
+        metrics_df = pd.concat([metrics_df, new_row], ignore_index=True)
 
-        # Save checkpoint every X epochs
-        if (epoch + 1) % save_every_n_epochs == 0 or (epoch + 1) == num_epochs:
-            save_checkpoint(
-                model, optimizer, scheduler, epoch, checkpoint_path, metrics_df
+        if (
+            (epoch + 1) % save_every_n_epochs == 0
+            or (epoch + 1) == num_epochs
+            and not os.path.exists(checkpoint_path)
+        ):
+            torch.save(
+                {
+                    "epoch": epoch,
+                    "model_state_dict": model.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "scheduler_state_dict": scheduler.state_dict(),
+                },
+                checkpoint_path / f"checkpoint_epoch_{epoch+1}.pth",
             )
+            metrics_df.to_csv(checkpoint_path / "metrics.csv", index=False)
+            print(f"Checkpoint for epoch {epoch+1} saved.")
