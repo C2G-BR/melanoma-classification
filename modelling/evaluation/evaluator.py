@@ -212,3 +212,21 @@ def visualize_model_confidence(
     if save_path:
         plt.savefig(save_path)
     plt.show()
+
+
+def compute_accuracy(
+    evaluation_report: pd.DataFrame
+) -> float:
+    """Compute the accuracy from the evaluation report.
+
+    Args:
+        evaluation_report: DataFrame containing predicted and true labels.
+    
+    Returns:
+        Accuracy.
+    """
+    correct_predictions = evaluation_report[
+        evaluation_report['predicted_class'] == evaluation_report['true_class']
+    ]
+    accuracy = len(correct_predictions) / len(evaluation_report)
+    return accuracy
