@@ -19,8 +19,16 @@ def visualize_loss(
     """
 
     _, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(df_metrics['epoch'], df_metrics['train_loss'], label='Train Loss')
-    ax.plot(df_metrics['epoch'], df_metrics['val_loss'], label='Validation Loss')
+    ax.plot(
+        df_metrics['epoch'],
+        df_metrics['train_loss'],
+        label='Train Loss'
+    )
+    ax.plot(
+        df_metrics['epoch'], 
+        df_metrics['val_loss'], 
+        label='Validation Loss'
+    )
     ax.set_title('Training and Validation Loss')
     ax.set_xlabel('Epoch')
     ax.set_ylabel('Loss')
@@ -44,12 +52,36 @@ def visualize_f1_precision_recall(
     """
     
     _, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(df_metrics['epoch'], df_metrics['train_f1'], label='Train F1')
-    ax.plot(df_metrics['epoch'], df_metrics['train_precision'], label='Train Precision')
-    ax.plot(df_metrics['epoch'], df_metrics['train_recall'], label='Train Recall')
-    ax.plot(df_metrics['epoch'], df_metrics['val_f1'], label='Validation F1')
-    ax.plot(df_metrics['epoch'], df_metrics['val_precision'], label='Validation Precision')
-    ax.plot(df_metrics['epoch'], df_metrics['val_recall'], label='Validation Recall')
+    ax.plot(
+        df_metrics['epoch'],
+        df_metrics['train_f1'],
+        label='Train F1'
+    )
+    ax.plot(
+        df_metrics['epoch'],
+        df_metrics['train_precision'],
+        label='Train Precision'
+    )
+    ax.plot(
+        df_metrics['epoch'],
+        df_metrics['train_recall'],
+        label='Train Recall'
+    )
+    ax.plot(
+        df_metrics['epoch'],
+        df_metrics['val_f1'],
+        label='Validation F1'
+    )
+    ax.plot(
+        df_metrics['epoch'],
+        df_metrics['val_precision'],
+        label='Validation Precision'
+    )
+    ax.plot(
+        df_metrics['epoch'],
+        df_metrics['val_recall'],
+        label='Validation Recall'
+    )
     ax.set_title('Training and Validation Metrics')
     ax.set_xlabel('Epoch')
     ax.set_ylabel('Score')
@@ -72,8 +104,12 @@ def visualize_accuracy(
     """
 
     _, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(df_metrics['epoch'], df_metrics['train_acc'], label='Train Accuracy')
-    ax.plot(df_metrics['epoch'], df_metrics['val_acc'], label='Validation Accuracy')
+    ax.plot(
+        df_metrics['epoch'], df_metrics['train_acc'], label='Train Accuracy'
+    )
+    ax.plot(
+        df_metrics['epoch'], df_metrics['val_acc'], label='Validation Accuracy'
+    )
     ax.set_title('Training and Validation Accuracy')
     ax.set_xlabel('Epoch')
     ax.set_ylabel('Accuracy')
@@ -101,6 +137,9 @@ def create_evaluation_report(
         test_dataloader: DataLoader for the test dataset
         class_labels: List of class labels
         device: Device to run the model on
+    
+    Returns:
+        DataFrame containing predicted and true labels.
     """
     model.eval()
     results = []
@@ -114,7 +153,11 @@ def create_evaluation_report(
         results.append({
             'predicted_class': predicted.item(),
             'predicted_label': class_labels[predicted.item()],
-            'predicted_confidence': torch.nn.functional.softmax(output, dim=1)[0][predicted.item()].item(),
+            'predicted_confidence':
+                torch.nn.functional.softmax(
+                    output, 
+                    dim=1
+                )[0][predicted.item()].item(),
             'true_class': label.item(),
             'true_label': class_labels[label.item()]
         })
@@ -181,13 +224,29 @@ def visualize_model_confidence(
         evaluation_report: The evaluation DataFrame containing
         'predicted_class', 'predicted_label', 'predicted_confidence',
         'true_class', and 'true_label'.
+        save_path: Path to save the plot.
     """
     
     # Define the conditions for each category
-    true_positive = evaluation_report[(evaluation_report['predicted_class'] == 0) & (evaluation_report['true_class'] == 0)]
-    true_negative = evaluation_report[(evaluation_report['predicted_class'] == 1) & (evaluation_report['true_class'] == 1)]
-    false_positive = evaluation_report[(evaluation_report['predicted_class'] == 0) & (evaluation_report['true_class'] == 1)]
-    false_negative = evaluation_report[(evaluation_report['predicted_class'] == 1) & (evaluation_report['true_class'] == 0)]
+    true_positive = evaluation_report[
+        (evaluation_report['predicted_class'] == 0) &
+        (evaluation_report['true_class'] == 0)
+    ]
+
+    true_negative = evaluation_report[
+        (evaluation_report['predicted_class'] == 1) &
+        (evaluation_report['true_class'] == 1)
+    ]
+
+    false_positive = evaluation_report[
+        (evaluation_report['predicted_class'] == 0) &
+        (evaluation_report['true_class'] == 1)
+    ]
+
+    false_negative = evaluation_report[
+        (evaluation_report['predicted_class'] == 1) &
+        (evaluation_report['true_class'] == 0)
+    ]
     
     # Prepare the data for plotting
     data = [
@@ -201,7 +260,12 @@ def visualize_model_confidence(
 
     # Create the box plots
     plt.figure(figsize=(10, 6))
-    plt.boxplot(data, labels=labels, patch_artist=True, boxprops=dict(facecolor="lightblue"))
+    plt.boxplot(
+        data,
+        labels=labels,
+        patch_artist=True, 
+        boxprops=dict(facecolor="lightblue")
+    )
     plt.title('Model Confidence for Predictions (Positives=Melanoma)')
     plt.ylabel('Confidence')
     plt.grid(True, axis='y')
