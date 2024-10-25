@@ -9,7 +9,7 @@ from melanoma_classification.model.patch_embedding import (
 )
 
 from collections import OrderedDict
-from typing import Tuple, List, Optional, Dict, Union
+from typing import List, Optional, Dict, Union
 
 class VisionTransformer(nn.Module):
     """Vision Transformer (ViT) Model for Image Classification
@@ -60,16 +60,16 @@ class VisionTransformer(nn.Module):
         """
         super(VisionTransformer, self).__init__()
 
-        self._classifier = classifier
+        self.classifier = classifier
         self.class_map = class_map
 
         embedding = embedding.lower()
         if embedding == "cnn":
-            self._patch_embedding: PatchEmbeddingProtocol = PatchEmbeddingCNN(
+            self.patch_embedding: PatchEmbeddingProtocol = PatchEmbeddingCNN(
                 in_channels=in_channels, patch_size=patch_size
             )
         elif embedding == "linear":
-            self._patch_embedding: PatchEmbeddingProtocol = (
+            self.patch_embedding: PatchEmbeddingProtocol = (
                 PatchEmbeddingLinear(
                     in_channels=in_channels, patch_size=patch_size
                 )
@@ -80,12 +80,12 @@ class VisionTransformer(nn.Module):
         embed_dim = in_channels * patch_size * patch_size
         num_patches = (img_size // patch_size) ** 2
 
-        self._cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))
-        self._pos_embed = nn.Parameter(
+        self.cls_token = nn.Parameter(torch.randn(1, 1, embed_dim))
+        self.pos_embed = nn.Parameter(
             torch.randn(1, 1 + num_patches, embed_dim)
         )
-        self._dropout = nn.Dropout(dropout)
-        self._transformer_layers = nn.ModuleList(
+        self.dropout = nn.Dropout(dropout)
+        self.transformer_layers = nn.ModuleList(
             [
                 TransformerEncoderLayer(
                     embed_dim=embed_dim,
@@ -116,23 +116,23 @@ class VisionTransformer(nn.Module):
         """
         B = x.size(0)
 
-        x = self._patch_embedding(x)  # (B, P, E)
+        x = self.patch_embedding(x)  # (B, P, E)
 
-        cls_tokens = self._cls_token.expand(B, -1, -1)  # (B, 1, E)
+        cls_tokens = self.cls_token.expand(B, -1, -1)  # (B, 1, E)
         x = torch.cat((cls_tokens, x), dim=1)  # (B, P+1, E)
 
-        x = x + self._pos_embed  # (B, P+1, E)
-        x = self._dropout(x)  # (B, P+1, E)
+        x = x + self.pos_embed  # (B, P+1, E)
+        x = self.dropout(x)  # (B, P+1, E)
 
         attention_maps = [] if not self.training else None
-        for layer in self._transformer_layers:
+        for layer in self.transformer_layers:
             x, attention = layer(x)  # (B, P+1, E), (B, A, P+1, P+1)
             if attention_maps is not None:
                 attention_maps.append(attention)
 
         cls_token_output = self._norm(x[:, 0])  # (B, E)
         
-        outputs = self._classifier(cls_token_output) # (B, N)
+        outputs = self.classifier(cls_token_output) # (B, N)
     
         return {
             "outputs": outputs,
@@ -170,15 +170,15 @@ class VisionTransformer(nn.Module):
         This will prevent any gradients from being calculated for the backbone,
         effectively freezing it during training.
         """
-        for param in self._patch_embedding.parameters():
+        for param in self.patch_embedding.parameters():
             param.requires_grad = False
 
-        for layer in self._transformer_layers:
+        for layer in self.transformer_layers:
             for param in layer.parameters():
                 param.requires_grad = False
 
-        self._cls_token.requires_grad = False
-        self._pos_embed.requires_grad = False
+        self.cls_token.requires_grad = False
+        self.pos_embed.requires_grad = False
         for param in self._norm.parameters():
             param.requires_grad = False
 
@@ -188,15 +188,15 @@ class VisionTransformer(nn.Module):
         This will allow gradients to be calculated for the backbone, making it
         trainable again.
         """
-        for param in self._patch_embedding.parameters():
+        for param in self.patch_embedding.parameters():
             param.requires_grad = True
 
-        for layer in self._transformer_layers:
+        for layer in self.transformer_layers:
             for param in layer.parameters():
                 param.requires_grad = True
 
-        self._cls_token.requires_grad = True
-        self._pos_embed.requires_grad = True
+        self.cls_token.requires_grad = True
+        self.pos_embed.requires_grad = True
         for param in self._norm.parameters():
             param.requires_grad = True
 
@@ -216,7 +216,7 @@ class VisionTransformer(nn.Module):
             print("Unfroze norm.")
             return
 
-        for layer in reversed(self._transformer_layers):
+        for layer in reversed(self.transformer_layers):
             for param in layer.parameters():
                 if not param.requires_grad:
                     param.requires_grad = True
@@ -226,17 +226,17 @@ class VisionTransformer(nn.Module):
                 print("Unfroze layer of transformers.")
                 return
 
-        if not self._pos_embed.requires_grad:
-            self._pos_embed.requires_grad = True
+        if not self.pos_embed.requires_grad:
+            self.pos_embed.requires_grad = True
             print("Unfroze positional embedding.")
             return
 
-        if not self._cls_token.requires_grad:
-            self._cls_token.requires_grad = True
+        if not self.cls_token.requires_grad:
+            self.cls_token.requires_grad = True
             print("Unfroze cls_token.")
             return
 
-        for param in self._patch_embedding.parameters():
+        for param in self.patch_embedding.parameters():
             if not param.requires_grad:
                 param.requires_grad = True
                 unfroze_layer = True

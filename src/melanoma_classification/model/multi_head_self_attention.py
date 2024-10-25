@@ -28,10 +28,10 @@ class MultiHeadSelfAttention(nn.Module):
         self._head_dim = self._embed_dim // self._num_heads
         self._scale = math.sqrt(self._head_dim)
 
-        self._query = nn.Linear(self._embed_dim, self._embed_dim)
-        self._key = nn.Linear(self._embed_dim, self._embed_dim)
-        self._value = nn.Linear(self._embed_dim, self._embed_dim)
-        self._fc_out = nn.Linear(self._embed_dim, self._embed_dim)
+        self.query = nn.Linear(self._embed_dim, self._embed_dim)
+        self.key = nn.Linear(self._embed_dim, self._embed_dim)
+        self.value = nn.Linear(self._embed_dim, self._embed_dim)
+        self.fc_out = nn.Linear(self._embed_dim, self._embed_dim)
 
     def forward(
         self, 
@@ -61,9 +61,9 @@ class MultiHeadSelfAttention(nn.Module):
         B, P, _ = x.size()
 
         # Output Dimension: (B, P, A, D)
-        query = self._query(x).view(B, P, self._num_heads, self._head_dim)
-        key = self._key(x).view(B, P, self._num_heads, self._head_dim)
-        value = self._value(x).view(B, P, self._num_heads, self._head_dim)
+        query = self.query(x).view(B, P, self._num_heads, self._head_dim)
+        key = self.key(x).view(B, P, self._num_heads, self._head_dim)
+        value = self.value(x).view(B, P, self._num_heads, self._head_dim)
 
         # Output Dimension: (B, A, P, D)
         query = query.transpose(1, 2)

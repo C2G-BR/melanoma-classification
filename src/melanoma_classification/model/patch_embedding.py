@@ -38,7 +38,7 @@ class PatchEmbeddingCNN(nn.Module):
 
         # The projection layer projects the input image to a sequence of
         # flattened 2D patches
-        self._projection = nn.Conv2d(
+        self.projection = nn.Conv2d(
             in_channels=in_channels,
             out_channels=embed_dim,
             kernel_size=patch_size,
@@ -60,7 +60,7 @@ class PatchEmbeddingCNN(nn.Module):
             A sequence of flattened 2D patches (B, P, E).
         """
 
-        x = self._projection(x)  # (B, E, G, G)
+        x = self.projection(x)  # (B, E, G, G)
         x = x.flatten(2)  # (B, E, G**2)
         x = x.transpose(1, 2)  # (B, G**2, E)
 
@@ -86,7 +86,7 @@ class PatchEmbeddingLinear(nn.Module):
 
         embed_dim = in_channels * self._patch_size * self._patch_size
 
-        self._projection = nn.Linear(
+        self.projection = nn.Linear(
             in_features=embed_dim, out_features=embed_dim
         )
 
@@ -112,7 +112,7 @@ class PatchEmbeddingLinear(nn.Module):
         )  # (B, C, G, S, G, S)
         x = x.permute(0, 2, 4, 1, 3, 5).contiguous()  # (B, G, G, C, S, S)
         x = x.view(B, -1, self._patch_size * self._patch_size * C)  # (B, P, E)
-        x = self._projection(x)  # (B, P, E)
+        x = self.projection(x)  # (B, P, E)
 
         return x
 

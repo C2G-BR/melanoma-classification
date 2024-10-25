@@ -44,10 +44,10 @@ class TransformerEncoderLayer(nn.Module):
         else:
             raise ValueError(f"Unknown normalization technique '{norm}'.")
 
-        self._mhsa = MultiHeadSelfAttention(embed_dim, num_heads)
-        self._norm1 = nn.LayerNorm(embed_dim)
-        self._norm2 = nn.LayerNorm(embed_dim)
-        self._mlp = nn.Sequential(
+        self.mhsa = MultiHeadSelfAttention(embed_dim, num_heads)
+        self.norm1 = nn.LayerNorm(embed_dim)
+        self.norm2 = nn.LayerNorm(embed_dim)
+        self.mlp = nn.Sequential(
             nn.Linear(embed_dim, int(embed_dim * mlp_ratio)),
             nn.GELU(),
             nn.Dropout(dropout),
@@ -56,19 +56,19 @@ class TransformerEncoderLayer(nn.Module):
         )
 
     def _pre_norm(self, x) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        x2, attention = self._mhsa(self._norm1(x))  # (B, P, E), (B, A, P, P)
+        x2, attention = self.mhsa(self.norm1(x))  # (B, P, E), (B, A, P, P)
         x = x + x2  # (B, P, E)
-        x = x + self._mlp(self._norm2(x))  # (B, P, E)
+        x = x + self.mlp(self.norm2(x))  # (B, P, E)
 
         if self.training:
             return x, None
         return x, attention
     
     def _post_norm(self, x) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        x2, attention = self._mhsa(x)  # (B, P, E), (B, A, P, P)
+        x2, attention = self.mhsa(x)  # (B, P, E), (B, A, P, P)
         x = x + x2  # (B, P, E)
-        x = x + self._mlp(self._norm1(x))  # (B, P, E)
-        x = self._norm2(x)  # (B, P, E)
+        x = x + self.mlp(self.norm1(x))  # (B, P, E)
+        x = self.norm2(x)  # (B, P, E)
 
         if self.training:
             return x, None
