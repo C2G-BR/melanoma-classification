@@ -2,7 +2,7 @@ import torch.nn as nn
 from melanoma_classification.model.vision_transformer import VisionTransformer
 
 
-def get_dermmel_classifier_v1() -> nn.Module:
+def get_dermmel_classifier_v1() -> VisionTransformer:
     patch_size = 16
     in_channels = 3
 
