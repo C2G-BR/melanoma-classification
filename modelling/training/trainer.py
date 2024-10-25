@@ -21,8 +21,9 @@ def train(
     device: torch.device,
     checkpoint_path: Path,
     freezed_epochs: int = 0,
+    num_unfreeze_layers: int | None = None,
     save_every_n_epochs: int = 5,
-    checkpoint_model_file: str = None,
+    checkpoint_model_file: str | None = None,
     checkpoint_metrics_file: str = "metrics.csv",
 ) -> None:
     """Trains the model.
@@ -38,8 +39,11 @@ def train(
         device: The device to train on.
         checkpoint_path: The path to save the checkpoints.
         freezed_epochs: The number of epochs to freeze the backbone.
+        num_unfreeze_layers: The number of layers to unfreeze sequentially. If
+            None, unfreezes all layers.
         save_every_n_epochs: Save a checkpoint every n epochs.
-        checkpoint_model_file: The model checkpoint file to resume training.
+        checkpoint_model_file: The model checkpoint file to resume training. If
+            None, does not use file.
         checkpoint_metrics_file: The metrics checkpoint file to resume training.
     """
     checkpoint_path.mkdir(parents=True, exist_ok=True)
@@ -78,8 +82,14 @@ def train(
     # TRAINING
     model.train()
     for epoch in range(start_epoch, num_epochs):
-        if epoch >= freezed_epochs and freezed_epochs != 0:
-            model.unfreeze_sequentially()
+        if (
+            epoch >= freezed_epochs
+            and freezed_epochs != 0
+            and (
+                num_unfreeze_layers is None
+                or epoch <= freezed_epochs + num_unfreeze_layers
+            )
+        ):
             model.unfreeze_sequentially()
 
         running_loss = 0.0
