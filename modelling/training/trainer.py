@@ -21,18 +21,21 @@ def save_checkpoint(
     """Saves the model, optimizer, and scheduler state.
 
     Args:
-        model:
-        optimizer:
-        scheduler:
-        epoch:
-        checkpoint_path:
-        metrics_df:
+        model: The model to save.
+        optimizer: The optimizer to save.
+        scheduler: The scheduler to save.
+        epoch: The current epoch.
+        checkpoint_path: The path to save the checkpoint.
+        metrics_df: The DataFrame containing the metrics.
     """
 
     if not os.path.exists(checkpoint_path):
         os.makedirs(checkpoint_path)
 
-    checkpoint_file = os.path.join(checkpoint_path, f"checkpoint_epoch_{epoch+1}.pth")
+    checkpoint_file = os.path.join(
+        checkpoint_path,
+        f"checkpoint_epoch_{epoch+1}.pth"
+    )
 
     torch.save(
         {
@@ -65,21 +68,46 @@ def train(
     checkpoint_model_file: str = None,
     checkpoint_metrics_file: str = "metrics.csv",
 ) -> None:
+    """Trains the model.
+
+    Args:
+        model: The model to train.
+        train_loader: The DataLoader for the training set.
+        val_loader: The DataLoader for the validation set.
+        criterion: The loss function.
+        optimizer: The optimizer.
+        scheduler: The learning rate scheduler.
+        num_epochs: The number of epochs to train.
+        device: The device to train on.
+        checkpoint_path: The path to save the checkpoints.
+        freezed_epochs: The number of epochs to freeze the backbone.
+        save_every_n_epochs: Save a checkpoint every n epochs.
+        checkpoint_model_file: The model checkpoint file to resume training.
+        checkpoint_metrics_file: The metrics checkpoint file to resume training.
+    """
+
     start_epoch = 0
 
     # Load checkpoint if resuming training
     if checkpoint_model_file:
         # Checkpoint contains model, optimizer, epoch, and scheduler
-        checkpoint = torch.load(checkpoint_path / checkpoint_model_file, weights_only=True)
+        checkpoint = torch.load(
+            checkpoint_path / checkpoint_model_file, 
+            weights_only=True
+        )
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
         for state in optimizer.state.values():
             if isinstance(state, torch.Tensor):
                 state.data = state.data.to(device)
-            elif isinstance(state, dict):  # Handle nested states (e.g., momentum buffers)
+
+            # Handle nested states (e.g., momentum buffers)
+            elif isinstance(state, dict):
                 for key, value in state.items():
                     if isinstance(value, torch.Tensor):
                         state[key] = value.to(device)
+
         start_epoch = checkpoint["epoch"] + 1
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         metrics_df = pd.read_csv(checkpoint_path / checkpoint_metrics_file)
@@ -123,10 +151,6 @@ def train(
             predicted = torch.argmax(outputs, 1)
             total_predictions += labels.size(0)
             true_positives += (predicted == labels).sum().item()
- 
-            # We used this to identify, that our model switched too aggressively
-            # between two classes
-            # print(predicted.sum() / labels.size(0), labels.sum() / labels.size(0))
             
             # Store true labels and predictions for F1 calculation
             y_true_train.extend(labels.cpu().numpy())
@@ -143,9 +167,15 @@ def train(
         train_acc = 100.0 * true_positives / total_predictions
 
         # Calculate precision, recall, F1-score
-        train_f1 = f1_score(y_true_train, y_pred_train, average="binary")
-        train_precision = precision_score(y_true_train, y_pred_train, average="binary")
-        train_recall = recall_score(y_true_train, y_pred_train, average="binary")
+        train_f1 = f1_score(
+            y_true_train, y_pred_train, average="binary"
+        )
+        train_precision = precision_score(
+            y_true_train, y_pred_train, average="binary"
+        )
+        train_recall = recall_score(
+            y_true_train, y_pred_train, average="binary"
+        )
 
         # Prepare validation loop
         val_loss = 0.0
@@ -180,7 +210,8 @@ def train(
 
                 # Update progress bar
                 vbar.set_postfix(
-                    val_loss=val_loss / total, val_accuracy=100.0 * correct / total
+                    val_loss=val_loss / total,
+                    val_accuracy=100.0 * correct / total
                 )
 
         # Calculate metrics for validation set
@@ -189,7 +220,9 @@ def train(
 
         # Calculate precision, recall, F1-score for validation
         val_f1 = f1_score(y_true_val, y_pred_val, average="binary")
-        val_precision = precision_score(y_true_val, y_pred_val, average="binary")
+        val_precision = precision_score(
+            y_true_val, y_pred_val, average="binary"
+        )
         val_recall = recall_score(y_true_val, y_pred_val, average="binary")
 
         # Learning rate scheduling
@@ -209,7 +242,9 @@ def train(
             "val_precision": val_precision,
             "val_recall": val_recall,
         }
-        metrics_df = pd.concat([metrics_df, pd.DataFrame([new_row])], ignore_index=True)
+        metrics_df = pd.concat(
+            [metrics_df, pd.DataFrame([new_row])], ignore_index=True
+        )
         del new_row
 
         # Save checkpoint every X epochs
