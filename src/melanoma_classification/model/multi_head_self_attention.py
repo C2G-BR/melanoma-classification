@@ -77,7 +77,7 @@ class MultiHeadSelfAttention(nn.Module):
         # Compute the weighted sum of values
         out = torch.matmul(attention, value)  # (B, A, P, D)
         out = out.transpose(1, 2).reshape(B, P, self._embed_dim)  # (B, P, E)
-        out = self._fc_out(out)  # (B, P, E)
+        out = self.fc_out(out)  # (B, P, E)
 
         if self.training:
             return out, None

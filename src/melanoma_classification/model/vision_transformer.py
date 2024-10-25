@@ -97,7 +97,7 @@ class VisionTransformer(nn.Module):
                 for _ in range(depth)
             ]
         )
-        self._norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim)
 
     def forward(
         self, x: torch.Tensor
@@ -130,7 +130,7 @@ class VisionTransformer(nn.Module):
             if attention_maps is not None:
                 attention_maps.append(attention)
 
-        cls_token_output = self._norm(x[:, 0])  # (B, E)
+        cls_token_output = self.norm(x[:, 0])  # (B, E)
         
         outputs = self.classifier(cls_token_output) # (B, N)
     
@@ -179,7 +179,7 @@ class VisionTransformer(nn.Module):
 
         self.cls_token.requires_grad = False
         self.pos_embed.requires_grad = False
-        for param in self._norm.parameters():
+        for param in self.norm.parameters():
             param.requires_grad = False
 
     def unfreeze(self) -> None:
@@ -197,7 +197,7 @@ class VisionTransformer(nn.Module):
 
         self.cls_token.requires_grad = True
         self.pos_embed.requires_grad = True
-        for param in self._norm.parameters():
+        for param in self.norm.parameters():
             param.requires_grad = True
 
     def unfreeze_sequentially(self) -> None:
@@ -207,7 +207,7 @@ class VisionTransformer(nn.Module):
         """
         unfroze_layer = False
 
-        for param in self._norm.parameters():
+        for param in self.norm.parameters():
             if not param.requires_grad:
                 param.requires_grad = True
                 unfroze_layer = True

@@ -110,7 +110,6 @@ def create_evaluation_report(
         with torch.no_grad():
             output = model(image)["outputs"]
         _, predicted = torch.max(output, 1)
-        model.classes
         results.append({
             'predicted_class': predicted.item(),
             'predicted_label': class_labels[predicted.item()],
