@@ -8,17 +8,17 @@ from sklearn.metrics import confusion_matrix
 
 def visualize_loss(
     df_metrics: pd,
-    save_path: Path = None
+    save_path: Path | None = None
 ) -> None:
     """Visualize training and validation loss.
     
     Args:
         df_metrics: DataFrame containing training and validation
-        loss.
-        save_path: Path to save the plot.
+            loss.
+        save_path: Path | None to save the plot.
     """
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    _, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df_metrics['epoch'], df_metrics['train_loss'], label='Train Loss')
     ax.plot(df_metrics['epoch'], df_metrics['val_loss'], label='Validation Loss')
     ax.set_title('Training and Validation Loss')
@@ -32,18 +32,18 @@ def visualize_loss(
 
 def visualize_f1_precision_recall(
     df_metrics: pd,
-    save_path: Path = None
+    save_path: Path | None = None
 ) -> None:
     """Visualize F1, precision, and recall in same plot for training and
     validation.
 
     Args:
         df_metrics: DataFrame containing training and validation
-        loss.
-        save_path: Path to save the plot.
+            loss.
+        save_path: Path | None to save the plot.
     """
     
-    fig, ax = plt.subplots(figsize=(10, 6))
+    _, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df_metrics['epoch'], df_metrics['train_f1'], label='Train F1')
     ax.plot(df_metrics['epoch'], df_metrics['train_precision'], label='Train Precision')
     ax.plot(df_metrics['epoch'], df_metrics['train_recall'], label='Train Recall')
@@ -61,17 +61,17 @@ def visualize_f1_precision_recall(
 
 def visualize_accuracy(
     df_metrics: pd,
-    save_path: Path = None
+    save_path: Path | None = None
 ) -> None:
     """Visualize accuracy in same plot for training and validation.
 
     Args:
         df_metrics: DataFrame containing training and validation
-        loss.
-        save_path: Path to save the plot.
+            loss.
+        save_path: Path | None to save the plot.
     """
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    _, ax = plt.subplots(figsize=(10, 6))
     ax.plot(df_metrics['epoch'], df_metrics['train_acc'], label='Train Accuracy')
     ax.plot(df_metrics['epoch'], df_metrics['val_acc'], label='Validation Accuracy')
     ax.set_title('Training and Validation Accuracy')
@@ -124,7 +124,7 @@ def create_evaluation_report(
 def visualize_confusion_matrix(
     evaluation_report: pd.DataFrame,
     class_labels: list,
-    save_path: Path = None
+    save_path: Path | None = None
 ) -> None:
     """Create the confusion matrix (incl. total mount & probablities) from the
     evaluation results and visualize/save it.
@@ -132,7 +132,7 @@ def visualize_confusion_matrix(
     Args:
         evaluation_report: DataFrame containing predicted and true labels.
         class_labels: List of class labels.
-        save_path: Path to save the plot
+        save_path: Path | None to save the plot
     """
     true_labels = evaluation_report['true_class']
     predicted_labels = evaluation_report['predicted_class']
@@ -171,7 +171,7 @@ def visualize_confusion_matrix(
 
 def visualize_model_confidence(
     evaluation_report: pd.DataFrame,
-    save_path: Path = None
+    save_path: Path | None = None
 ) -> None:
     """
     Create a box plot visualization of model confidence based on the evaluation

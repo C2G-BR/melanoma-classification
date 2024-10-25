@@ -4,7 +4,7 @@ import torch.nn as nn
 from typing import Protocol
 
 
-class PatchEmbeddingProtocol(nn.Module, Protocol):
+class PatchEmbeddingProtocol(Protocol):
     """Patch Embedding"""
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

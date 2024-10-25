@@ -9,7 +9,7 @@ from melanoma_classification.model.patch_embedding import (
 )
 
 from collections import OrderedDict
-from typing import List, Optional, Dict, Union
+from typing import Optional, Union
 
 class VisionTransformer(nn.Module):
     """Vision Transformer (ViT) Model for Image Classification
@@ -101,7 +101,7 @@ class VisionTransformer(nn.Module):
 
     def forward(
         self, x: torch.Tensor
-    ) -> Dict[str, Union[torch.Tensor, Optional[List[torch.Tensor]]]]:
+    ) -> dict[str, Union[torch.Tensor, Optional[list[torch.Tensor]]]]:
         """Forward pass
 
         P - Number of Patches
