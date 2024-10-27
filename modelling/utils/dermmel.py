@@ -8,9 +8,11 @@ from torchvision import transforms
 
 from melanoma_classification.utils import production_transform
 
-class DermMel(Dataset):
 
-    def __init__(self, root_dir:str, split:str='train_sep', transform:any=None) -> None:
+class DermMel(Dataset):
+    def __init__(
+        self, root_dir: str, split: str = "train_sep", transform: any = None
+    ) -> None:
         """Constructor for the DermMel dataset.
 
         Args:
@@ -18,24 +20,26 @@ class DermMel(Dataset):
             split: The split to load (train_sep, valid, test).
             transform: The transformations to apply to the images.
         """
-        
+
         self.root_dir = root_dir
         self.split = split
         self.transform = transform
         self.prod_transform = production_transform()
-        
+
         # Define the subdirectories for each class (Melanoma, NotMelanoma)
-        self.classes = ['Melanoma', 'NotMelanoma']
+        self.classes = ["Melanoma", "NotMelanoma"]
         self.image_paths = []
         self.labels = []
 
-        base_path = 'DermMel'
+        base_path = "DermMel"
 
         # Load image paths and labels
         for label, class_name in enumerate(self.classes):
-            class_dir = os.path.join(self.root_dir, base_path, self.split, class_name)
+            class_dir = os.path.join(
+                self.root_dir, base_path, self.split, class_name
+            )
             for img_file in os.listdir(class_dir):
-                if img_file.endswith(('.jpg', '.jpeg')):
+                if img_file.endswith((".jpg", ".jpeg")):
                     self.image_paths.append(os.path.join(class_dir, img_file))
                     self.labels.append(label)
 
@@ -46,13 +50,13 @@ class DermMel(Dataset):
             The number of images in the dataset.
         """
         return len(self.image_paths)
-    
-    def __getitem__(self, idx:int) -> tuple[torch.Tensor, int]:
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
         """Get an image and its label.
 
         Args:
             idx: The index of the image to retrieve.
-        
+
         Returns:
             The image and its label.
         """
@@ -61,17 +65,17 @@ class DermMel(Dataset):
 
         # Load the image
         img_path = self.image_paths[idx]
-        image = Image.open(img_path).convert('RGB')
-        
+        image = Image.open(img_path).convert("RGB")
+
         # Get the label
         label = self.labels[idx]
-        
+
         # Apply transformations using albumentations
         if self.transform:
             image = self.transform(image=np.array(image))["image"]
-        
+
         return image, label
-    
+
     def visualize_image(self, idx: int) -> None:
         """Visualize an image and its corresponding label from the DermMel
         dataset.
@@ -85,14 +89,14 @@ class DermMel(Dataset):
         # If the image is a normalized tensor, undo the normalization
         if isinstance(image, torch.Tensor):
             # If normalization was applied, we should reverse it
-            if hasattr(self.transform, 'transforms'):
+            if hasattr(self.transform, "transforms"):
                 for t in self.transform.transforms:
                     if isinstance(t, transforms.Normalize):
                         # Undo normalization: image * std + mean
                         mean = torch.tensor(t.mean).view(-1, 1, 1)
                         std = torch.tensor(t.std).view(-1, 1, 1)
                         image = image * std + mean
-            
+
             # Convert the image tensor to NumPy and transpose to HWC (Height, Width, Channels)
             image = image.permute(1, 2, 0).numpy()
             # Clip to the valid range [0, 1] for displaying
@@ -104,5 +108,5 @@ class DermMel(Dataset):
         # Plot the image
         plt.imshow(image)
         plt.title(f"Label: {label_name}")
-        plt.axis('off')  # Hide the axes
+        plt.axis("off")  # Hide the axes
         plt.show()
