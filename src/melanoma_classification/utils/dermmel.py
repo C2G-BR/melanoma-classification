@@ -97,7 +97,7 @@ class DermMel(Dataset):
                         std = torch.tensor(t.std).view(-1, 1, 1)
                         image = image * std + mean
 
-            # Convert the image tensor to NumPy and transpose to HWC (Height, Width, Channels)
+            # Convert the image tensor to NumPy and transpose to HWC
             image = image.permute(1, 2, 0).numpy()
             # Clip to the valid range [0, 1] for displaying
             image = np.clip(image, 0, 1)

@@ -8,9 +8,12 @@ from PIL import Image
 from melanoma_classification.utils import (
     get_device,
     production_transform,
+    train_transform,
     visualize_single_attention,
     visualize_multihead_as_single_attention,
     visualize_multihead_attention,
+    DermMel,
+    train as _train,
 )
 from melanoma_classification.model import get_dermmel_classifier_v1
 
@@ -18,6 +21,58 @@ from melanoma_classification.model import get_dermmel_classifier_v1
 app = typer.Typer(
     name="Melanoma Classification", pretty_exceptions_enable=False
 )
+
+
+@app.command()
+def train(
+    data_path: str,
+    checkpoint_path: str,
+    checkpoint_model_file: str | None = None,
+):
+    device = get_device()
+    vit = get_dermmel_classifier_v1()
+    vit.load_pretrained_weights("deit_base_patch16_224")
+    train_dataset = DermMel(
+        data_path, split="train_sep", transform=train_transform()
+    )
+    train_dataloader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=8, shuffle=True, num_workers=2
+    )
+
+    valid_dataset = DermMel(
+        data_path, split="valid", transform=production_transform()
+    )
+    valid_dataloader = torch.utils.data.DataLoader(
+        valid_dataset, batch_size=8, shuffle=True, num_workers=2
+    )
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(
+        [
+            {"params": vit.cls_token, "lr": 1e-7},
+            {"params": vit.pos_embed, "lr": 1e-7},
+            {"params": vit.patch_embedding.parameters(), "lr": 1e-6},
+            {"params": vit.transformer_layers.parameters(), "lr": 1e-5},
+            {"params": vit.norm.parameters(), "lr": 1e-6},
+            {"params": vit.classifier.parameters(), "lr": 1e-4},
+        ]
+    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", patience=3, factor=0.1
+    )
+    _train(
+        model=vit,
+        train_loader=train_dataloader,
+        val_loader=valid_dataloader,
+        criterion=criterion,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        num_epochs=50,
+        freezed_epochs=5,
+        device=device,
+        checkpoint_model_file=checkpoint_model_file,
+        checkpoint_path=Path(checkpoint_path),
+        save_every_n_epochs=1,
+    )
 
 
 @app.command()
