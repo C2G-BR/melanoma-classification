@@ -1,13 +1,113 @@
+import mlflow.artifacts
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from sklearn.metrics import f1_score, precision_score, recall_score
-import pandas as pd
-import os
 from pathlib import Path
 from melanoma_classification.model.vision_transformer import VisionTransformer
+import mlflow
+
+CHECKPOINT_FILE = "checkpoints/epoch_{epoch}.json"
+
+
+def _train(dataloader, model, criterion, optimizer, epoch, device):
+    running_loss = 0.0
+    y_true = torch.empty(0, device=device, dtype=torch.float)
+    y_pred = torch.empty(0, device=device, dtype=torch.float)
+
+    model.train()
+    for images, labels in (
+        tbar := tqdm(
+            dataloader,
+            unit="batch",
+            desc=f"Epoch {epoch+1} [Training]",
+        )
+    ):
+        images, labels = images.to(device), labels.to(device)
+        optimizer.zero_grad()
+        outputs = model(images)["outputs"]
+        loss = criterion(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        running_loss += loss.item()
+
+        predicted = torch.argmax(outputs, 1)
+
+        y_true = torch.cat((y_true, labels))
+        y_pred = torch.cat((y_pred, predicted))
+        total_predictions = y_pred.shape[0]
+
+        tbar.set_postfix(
+            loss=running_loss / total_predictions,
+            accuracy=100.0
+            * (y_pred == y_true).sum().item()
+            / total_predictions,
+        )
+
+    accuracy = (y_pred == y_true).sum().item() / total_predictions
+    y_true, y_pred = y_true.cpu(), y_pred.cpu()
+
+    mlflow.log_metrics(
+        metrics={
+            "train_f1": f1_score(y_true, y_pred),
+            "train_precision": precision_score(y_true, y_pred),
+            "train_recall": recall_score(y_true, y_pred),
+            "train_accuracy": accuracy,
+            "train_loss": running_loss / total_predictions,
+        },
+        step=epoch,
+    )
+
+
+def _eval(dataloader, model, criterion, scheduler, epoch, device):
+    running_loss = 0.0
+    y_true = torch.empty(0, device=device, dtype=torch.float)
+    y_pred = torch.empty(0, device=device, dtype=torch.float)
+
+    model.eval()
+    with torch.no_grad():
+        for images, labels in (
+            vbar := tqdm(
+                dataloader,
+                unit="batch",
+                desc=f"Epoch {epoch+1} [Validation]",
+            )
+        ):
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)["outputs"]
+            loss = criterion(outputs, labels)
+            running_loss += loss.item()
+
+            predicted = torch.argmax(outputs, 1)
+
+            y_true = torch.cat((y_true, labels))
+            y_pred = torch.cat((y_pred, predicted))
+            total_predictions = y_pred.shape[0]
+
+            vbar.set_postfix(
+                val_loss=running_loss / total_predictions,
+                val_accuracy=100.0
+                * (y_pred == y_true).sum().item()
+                / total_predictions,
+            )
+
+    accuracy = (y_pred == y_true).sum().item() / total_predictions
+    y_true, y_pred = y_true.cpu(), y_pred.cpu()
+    loss = running_loss / total_predictions
+
+    mlflow.log_metrics(
+        metrics={
+            "validation_f1": f1_score(y_true, y_pred),
+            "validation_precision": precision_score(y_true, y_pred),
+            "validation_recall": recall_score(y_true, y_pred),
+            "validation_accuracy": accuracy,
+            "validation_loss": loss,
+        },
+        step=epoch,
+    )
+    scheduler.step(loss)
 
 
 def train(
@@ -19,12 +119,10 @@ def train(
     scheduler: optim.lr_scheduler.ReduceLROnPlateau,
     num_epochs: int,
     device: torch.device,
-    checkpoint_path: Path,
     freezed_epochs: int = 0,
     num_unfreeze_layers: int | None = None,
     save_every_n_epochs: int = 5,
-    checkpoint_model_file: str | None = None,
-    checkpoint_metrics_file: str = "metrics.csv",
+    init_epoch: int | None = None,
 ) -> None:
     """Trains the model.
 
@@ -37,21 +135,17 @@ def train(
         scheduler: The learning rate scheduler.
         num_epochs: The number of epochs to train.
         device: The device to train on.
-        checkpoint_path: The path to save the checkpoints.
         freezed_epochs: The number of epochs to freeze the backbone.
         num_unfreeze_layers: The number of layers to unfreeze sequentially. If
             None, unfreezes all layers.
         save_every_n_epochs: Save a checkpoint every n epochs.
-        checkpoint_model_file: The model checkpoint file to resume training. If
-            None, does not use file.
-        checkpoint_metrics_file: The metrics checkpoint file to resume training.
+        init_epoch: Epoch to start from again. This indicates, that the run
+            already exists.
     """
-    checkpoint_path.mkdir(parents=True, exist_ok=True)
-
-    if checkpoint_model_file:
+    if init_epoch:
         # Resuming Training
-        checkpoint = torch.load(
-            checkpoint_path / checkpoint_model_file, weights_only=True
+        checkpoint = mlflow.artifacts.load_dict(
+            CHECKPOINT_FILE.format(epoch=init_epoch)
         )
         model.load_state_dict(checkpoint["model_state_dict"])
         optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
@@ -59,28 +153,23 @@ def train(
         for state in optimizer.state.values():
             if isinstance(state, torch.Tensor):
                 state.data = state.data.to(device)
-
-            # Handle nested states (e.g., momentum buffers)
             elif isinstance(state, dict):
+                # Handle nested states (e.g., momentum buffers)
                 for key, value in state.items():
                     if isinstance(value, torch.Tensor):
                         state[key] = value.to(device)
 
         start_epoch = checkpoint["epoch"] + 1
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-        metrics_df = pd.read_csv(checkpoint_path / checkpoint_metrics_file)
     else:
         # Beginning new Training
         start_epoch = 0
-        metrics_df = pd.DataFrame()
 
     if freezed_epochs > start_epoch:
         model.freeze_backbone()
 
     model.to(device)
 
-    # TRAINING
-    model.train()
     for epoch in range(start_epoch, num_epochs):
         if (
             epoch >= freezed_epochs
@@ -92,118 +181,31 @@ def train(
         ):
             model.unfreeze_sequentially()
 
-        running_loss = 0.0
-        true_positives = 0
-        total_predictions = 0
-        y_true_train = []
-        y_pred_train = []
-
-        for images, labels in (
-            tbar := tqdm(
-                train_loader,
-                unit="batch",
-                desc=f"Epoch {epoch+1}/{num_epochs} [Training]",
-            )
-        ):
-            images, labels = images.to(device), labels.to(device)
-            optimizer.zero_grad()
-            outputs = model(images)["outputs"]
-            loss = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-
-            predicted = torch.argmax(outputs, 1)
-            total_predictions += labels.size(0)
-            true_positives += (predicted == labels).sum().item()
-
-            y_true_train.extend(labels.cpu().numpy())
-            y_pred_train.extend(predicted.cpu().numpy())
-
-            tbar.set_postfix(
-                loss=running_loss / total_predictions,
-                accuracy=100.0 * true_positives / total_predictions,
-            )
-
-        train_loss = running_loss / len(train_loader.dataset)
-        train_acc = 100.0 * true_positives / total_predictions
-        train_f1 = f1_score(y_true_train, y_pred_train)
-        train_precision = precision_score(y_true_train, y_pred_train)
-        train_recall = recall_score(y_true_train, y_pred_train)
-
-        # VALIDATION
-        val_loss = 0.0
-        correct = 0
-        total = 0
-        y_true_val = []
-        y_pred_val = []
-
-        model.eval()
-        with torch.no_grad():
-            for images, labels in (
-                vbar := tqdm(
-                    val_loader,
-                    unit="batch",
-                    desc=f"Epoch {epoch+1}/{num_epochs} [Validation]",
-                )
-            ):
-                images, labels = images.to(device), labels.to(device)
-                outputs = model(images)["outputs"]
-                loss = criterion(outputs, labels)
-                val_loss += loss.item()
-
-                predicted = torch.argmax(outputs, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-
-                y_true_val.extend(labels.cpu().numpy())
-                y_pred_val.extend(predicted.cpu().numpy())
-
-                vbar.set_postfix(
-                    val_loss=val_loss / total,
-                    val_accuracy=100.0 * correct / total,
-                )
-
-        val_loss /= len(val_loader.dataset)
-        val_acc = 100.0 * correct / total
-        val_f1 = f1_score(y_true_val, y_pred_val)
-        val_precision = precision_score(y_true_val, y_pred_val)
-        val_recall = recall_score(y_true_val, y_pred_val)
-
-        scheduler.step(val_loss)
-
-        new_row = pd.DataFrame(
-            [
-                {
-                    "epoch": epoch + 1,
-                    "train_loss": train_loss,
-                    "train_acc": train_acc,
-                    "val_loss": val_loss,
-                    "val_acc": val_acc,
-                    "train_f1": train_f1,
-                    "train_precision": train_precision,
-                    "train_recall": train_recall,
-                    "val_f1": val_f1,
-                    "val_precision": val_precision,
-                    "val_recall": val_recall,
-                }
-            ]
+        _train(
+            dataloader=train_loader,
+            model=model,
+            criterion=criterion,
+            optimizer=optimizer,
+            epoch=epoch+1,
+            device=device,
         )
-        metrics_df = pd.concat([metrics_df, new_row], ignore_index=True)
+        _eval(
+            dataloader=val_loader,
+            model=model,
+            criterion=criterion,
+            scheduler=scheduler,
+            epoch=epoch+1,
+            device=device,
+        )
 
-        if (
-            (epoch + 1) % save_every_n_epochs == 0
-            or (epoch + 1) == num_epochs
-            and not os.path.exists(checkpoint_path)
-        ):
-            torch.save(
-                {
-                    "epoch": epoch,
-                    "model_state_dict": model.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "scheduler_state_dict": scheduler.state_dict(),
-                },
-                checkpoint_path / f"checkpoint_epoch_{epoch+1}.pth",
+        if (epoch + 1) % save_every_n_epochs == 0 or (epoch + 1) == num_epochs:
+            data = {
+                "epoch": epoch,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+            }
+            mlflow.log_dict(
+                data, artifact_file=CHECKPOINT_FILE.format(epoch=epoch + 1)
             )
-            metrics_df.to_csv(checkpoint_path / "metrics.csv", index=False)
             print(f"Checkpoint for epoch {epoch+1} saved.")
