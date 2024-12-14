@@ -16,6 +16,7 @@ from melanoma_classification.paths import (
     SCHEDULER_STATE_DICT,
 )
 from logging import getLogger
+import time
 
 logger = getLogger(__name__)
 
@@ -172,7 +173,6 @@ def training(
         logger.info("Initializing new training run.")
         start_epoch = 0
         model.load_pretrained_weights("deit_base_patch16_224")
-
     else:
         logger.info("Resuming training from epoch %d.", init_epoch)
         start_epoch = init_epoch + 1
@@ -216,6 +216,7 @@ def training(
         ):
             model.unfreeze_sequentially()
 
+        start = time.time()
         _train(
             dataloader=train_dataloader,
             model=model,
@@ -224,6 +225,7 @@ def training(
             epoch=epoch + 1,
             device=device,
         )
+        train = time.time()
         _validate(
             dataloader=val_dataloader,
             model=model,
@@ -231,6 +233,11 @@ def training(
             scheduler=scheduler,
             epoch=epoch + 1,
             device=device,
+        )
+        validation = time.time()
+        mlflow.log_metric(key="training_time", value=train - start, step=epoch)
+        mlflow.log_metric(
+            key="validation_time", value=validation - train, step=epoch
         )
 
         if (epoch + 1) % save_every_n_epochs == 0 or (epoch + 1) == num_epochs:
