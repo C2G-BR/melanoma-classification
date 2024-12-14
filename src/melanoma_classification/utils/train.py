@@ -1,15 +1,24 @@
 import mlflow.artifacts
 import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 from sklearn.metrics import f1_score, precision_score, recall_score
-from pathlib import Path
-from melanoma_classification.model.vision_transformer import VisionTransformer
+from melanoma_classification.model import get_dermmel_classifier_v1
 import mlflow
+from melanoma_classification.utils import (
+    get_device,
+    DermMel,
+    production_transform,
+    train_transform,
+)
+from logging import getLogger
 
-CHECKPOINT_FILE = "checkpoints/epoch_{epoch}.json"
+logger = getLogger(__name__)
+
+
+CHECKPOINT_FILE = "checkpoints/epoch={{epoch}}/{file}.json"
+MODEL_STATE_DICT = CHECKPOINT_FILE.format(file="model_state_dict")
+OPTIMIZER_STATE_DICT = CHECKPOINT_FILE.format(file="optimizer_state_dict")
+SCHEDULER_STATE_DICT = CHECKPOINT_FILE.format(file="scheduler_state_dict")
 
 
 def _train(dataloader, model, criterion, optimizer, epoch, device):
@@ -22,7 +31,7 @@ def _train(dataloader, model, criterion, optimizer, epoch, device):
         tbar := tqdm(
             dataloader,
             unit="batch",
-            desc=f"Epoch {epoch+1} [Training]",
+            desc=f"Epoch {epoch} [Training]",
         )
     ):
         images, labels = images.to(device), labels.to(device)
@@ -61,7 +70,7 @@ def _train(dataloader, model, criterion, optimizer, epoch, device):
     )
 
 
-def _eval(dataloader, model, criterion, scheduler, epoch, device):
+def _validate(dataloader, model, criterion, scheduler, epoch, device):
     running_loss = 0.0
     y_true = torch.empty(0, device=device, dtype=torch.float)
     y_pred = torch.empty(0, device=device, dtype=torch.float)
@@ -72,7 +81,7 @@ def _eval(dataloader, model, criterion, scheduler, epoch, device):
             vbar := tqdm(
                 dataloader,
                 unit="batch",
-                desc=f"Epoch {epoch+1} [Validation]",
+                desc=f"Epoch {epoch} [Validation]",
             )
         ):
             images, labels = images.to(device), labels.to(device)
@@ -110,15 +119,9 @@ def _eval(dataloader, model, criterion, scheduler, epoch, device):
     scheduler.step(loss)
 
 
-def train(
-    model: VisionTransformer,
-    train_loader: DataLoader,
-    val_loader: DataLoader,
-    criterion: nn.Module,
-    optimizer: optim.Optimizer,
-    scheduler: optim.lr_scheduler.ReduceLROnPlateau,
+def training(
+    data_path: str,
     num_epochs: int,
-    device: torch.device,
     freezed_epochs: int = 0,
     num_unfreeze_layers: int | None = None,
     save_every_n_epochs: int = 5,
@@ -127,14 +130,8 @@ def train(
     """Trains the model.
 
     Args:
-        model: The model to train.
-        train_loader: The DataLoader for the training set.
-        val_loader: The DataLoader for the validation set.
-        criterion: The loss function.
-        optimizer: The optimizer.
-        scheduler: The learning rate scheduler.
+        data_path: The path to the data.
         num_epochs: The number of epochs to train.
-        device: The device to train on.
         freezed_epochs: The number of epochs to freeze the backbone.
         num_unfreeze_layers: The number of layers to unfreeze sequentially. If
             None, unfreezes all layers.
@@ -142,13 +139,58 @@ def train(
         init_epoch: Epoch to start from again. This indicates, that the run
             already exists.
     """
-    if init_epoch:
-        # Resuming Training
-        checkpoint = mlflow.artifacts.load_dict(
-            CHECKPOINT_FILE.format(epoch=init_epoch)
+    device = get_device()
+    model = get_dermmel_classifier_v1()
+    train_dataloader = torch.utils.data.DataLoader(
+        DermMel(data_path, split="train_sep", transform=train_transform()),
+        batch_size=8,
+        shuffle=True,
+        num_workers=2,
+    )
+    val_dataloader = torch.utils.data.DataLoader(
+        DermMel(data_path, split="valid", transform=production_transform()),
+        batch_size=8,
+        shuffle=True,
+        num_workers=2,
+    )
+    criterion = torch.nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(
+        [
+            {"params": model.cls_token, "lr": 1e-7},
+            {"params": model.pos_embed, "lr": 1e-7},
+            {"params": model.patch_embedding.parameters(), "lr": 1e-6},
+            {"params": model.transformer_layers.parameters(), "lr": 1e-5},
+            {"params": model.norm.parameters(), "lr": 1e-6},
+            {"params": model.classifier.parameters(), "lr": 1e-4},
+        ]
+    )
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", patience=3, factor=0.1
+    )
+
+    if init_epoch is None:
+        logger.info("Initializing new training run.")
+        start_epoch = 0
+        model.load_pretrained_weights("deit_base_patch16_224")
+
+    else:
+        logger.info("Resuming training from epoch %d.", init_epoch)
+        start_epoch = init_epoch + 1
+        model.load_state_dict(
+            mlflow.artifacts.load_dict(
+                MODEL_STATE_DICT.format(epoch=init_epoch)
+            )
         )
-        model.load_state_dict(checkpoint["model_state_dict"])
-        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        optimizer.load_state_dict(
+            mlflow.artifacts.load_dict(
+                OPTIMIZER_STATE_DICT.format(epoch=init_epoch)
+            )
+        )
+        scheduler.load_state_dict(
+            mlflow.artifacts.load_dict(
+                SCHEDULER_STATE_DICT.format(epoch=init_epoch)
+            )
+        )
 
         for state in optimizer.state.values():
             if isinstance(state, torch.Tensor):
@@ -158,17 +200,10 @@ def train(
                 for key, value in state.items():
                     if isinstance(value, torch.Tensor):
                         state[key] = value.to(device)
-
-        start_epoch = checkpoint["epoch"] + 1
-        scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
-    else:
-        # Beginning new Training
-        start_epoch = 0
+    model.to(device)
 
     if freezed_epochs > start_epoch:
         model.freeze_backbone()
-
-    model.to(device)
 
     for epoch in range(start_epoch, num_epochs):
         if (
@@ -182,30 +217,94 @@ def train(
             model.unfreeze_sequentially()
 
         _train(
-            dataloader=train_loader,
+            dataloader=train_dataloader,
             model=model,
             criterion=criterion,
             optimizer=optimizer,
-            epoch=epoch+1,
+            epoch=epoch + 1,
             device=device,
         )
-        _eval(
-            dataloader=val_loader,
+        _validate(
+            dataloader=val_dataloader,
             model=model,
             criterion=criterion,
             scheduler=scheduler,
-            epoch=epoch+1,
+            epoch=epoch + 1,
             device=device,
         )
 
         if (epoch + 1) % save_every_n_epochs == 0 or (epoch + 1) == num_epochs:
-            data = {
-                "epoch": epoch,
-                "model_state_dict": model.state_dict(),
-                "optimizer_state_dict": optimizer.state_dict(),
-                "scheduler_state_dict": scheduler.state_dict(),
-            }
             mlflow.log_dict(
-                data, artifact_file=CHECKPOINT_FILE.format(epoch=epoch + 1)
+                model.state_dict(),
+                artifact_file=MODEL_STATE_DICT.format(epoch=epoch + 1),
             )
-            print(f"Checkpoint for epoch {epoch+1} saved.")
+            mlflow.log_dict(
+                optimizer.state_dict(),
+                artifact_file=OPTIMIZER_STATE_DICT.format(epoch=epoch + 1),
+            )
+            mlflow.log_dict(
+                scheduler.state_dict(),
+                artifact_file=SCHEDULER_STATE_DICT.format(epoch=epoch + 1),
+            )
+            logger.info("Checkpoint for epoch %d saved.", epoch + 1)
+
+
+def eval(data_path: str, epoch: int):
+    device = get_device()
+
+    dataset = DermMel(data_path, split="test", transform=production_transform())
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=8, shuffle=True, num_workers=2
+    )
+
+    model = get_dermmel_classifier_v1()
+    checkpoint = mlflow.artifacts.load_dict(CHECKPOINT_FILE.format(epoch=epoch))
+    model.load_state_dict(checkpoint["model_state_dict"])
+
+    criterion = torch.nn.CrossEntropyLoss()
+    running_loss = 0
+
+    y_true = torch.empty(0, device=device, dtype=torch.float)
+    y_pred = torch.empty(0, device=device, dtype=torch.float)
+
+    model.eval()
+    with torch.no_grad():
+        for images, labels in (
+            bar := tqdm(
+                dataloader,
+                unit="batch",
+                desc="[Evaluation]",
+            )
+        ):
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)["outputs"]
+            loss = criterion(outputs, labels)
+            running_loss += loss.item()
+
+            predicted = torch.argmax(outputs, 1)
+
+            y_true = torch.cat((y_true, labels))
+            y_pred = torch.cat((y_pred, predicted))
+            total_predictions = y_pred.shape[0]
+
+            bar.set_postfix(
+                val_loss=running_loss / total_predictions,
+                val_accuracy=100.0
+                * (y_pred == y_true).sum().item()
+                / total_predictions,
+            )
+
+    accuracy = (y_pred == y_true).sum().item() / total_predictions
+    y_true, y_pred = y_true.cpu(), y_pred.cpu()
+    loss = running_loss / total_predictions
+
+    mlflow.log_metrics(
+        metrics={
+            "validation_f1": f1_score(y_true, y_pred),
+            "validation_precision": precision_score(y_true, y_pred),
+            "validation_recall": recall_score(y_true, y_pred),
+            "validation_accuracy": accuracy,
+            "validation_loss": loss,
+        },
+        step=epoch,
+    )
