@@ -6,8 +6,6 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
 
-from melanoma_classification.utils import production_transform
-
 
 class DermMel(Dataset):
     def __init__(
@@ -24,16 +22,13 @@ class DermMel(Dataset):
         self.root_dir = root_dir
         self.split = split
         self.transform = transform
-        self.prod_transform = production_transform()
 
-        # Define the subdirectories for each class (Melanoma, NotMelanoma)
         self.classes = ["Melanoma", "NotMelanoma"]
         self.image_paths = []
         self.labels = []
 
         base_path = "DermMel"
 
-        # Load image paths and labels
         for label, class_name in enumerate(self.classes):
             class_dir = os.path.join(
                 self.root_dir, base_path, self.split, class_name
@@ -51,30 +46,27 @@ class DermMel(Dataset):
         """
         return len(self.image_paths)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int, str]:
         """Get an image and its label.
 
         Args:
             idx: The index of the image to retrieve.
 
         Returns:
-            The image and its label.
+            The image, its label, and its id.
         """
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        # Load the image
         img_path = self.image_paths[idx]
         image = Image.open(img_path).convert("RGB")
 
-        # Get the label
         label = self.labels[idx]
 
-        # Apply transformations using albumentations
         if self.transform:
             image = self.transform(image=np.array(image))["image"]
 
-        return image, label
+        return image, label, img_path.split("/")[-1].split(".")[0]
 
     def visualize_image(self, idx: int) -> None:
         """Visualize an image and its corresponding label from the DermMel
