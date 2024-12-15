@@ -1,14 +1,16 @@
-import typer
-import mlflow
+from logging import INFO, basicConfig, getLogger
 from pathlib import Path
-from melanoma_classification.utils import (
-    training,
-    get_git_commit_hash,
-    git_changes_detected,
-)
+
+import mlflow
+import typer
+
 from melanoma_classification.evaluation import evaluation
 from melanoma_classification.inference import inference
-from logging import getLogger, basicConfig, INFO
+from melanoma_classification.utils import (
+    get_git_commit_hash,
+    git_changes_detected,
+    training,
+)
 
 basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=INFO
@@ -46,12 +48,15 @@ def train(
 
     if not new_run and not continue_run:
         logger.warning(
-            "To continue a run, all required variables (run_id, epoch) must be provided."
+            "To continue a run, all required variables must be provided.",
+            cont_run_vars,
         )
         return
-    
+
     if continue_run:
-        previous_commit_hash = mlflow.get_run(run_id).data.params.get("commit_hash")
+        previous_commit_hash = mlflow.get_run(run_id).data.params.get(
+            "commit_hash"
+        )
         if previous_commit_hash != commit_hash:
             logger.warning(
                 "The commit hash of the previous run does not match the current"
@@ -70,6 +75,7 @@ def train(
         logger.info("Run Name: %s", run.info.run_name)
         logger.info("Run ID: %s", run.info.run_id)
         training(
+            run=run,
             data_path=data_path,
             num_epochs=50,
             freezed_epochs=5,
@@ -94,19 +100,19 @@ def evaluate(data_path: str, experiment_name: str, run_id: str, epoch: int):
 def infer(
     img_path: Path,
     experiment_name: str | None = None,
-    run_name: str | None = None,
+    run_id: str | None = None,
     epoch: int | None = None,
 ):
     if experiment_name is not None:
         mlflow.set_experiment(experiment_name=experiment_name)
-        with mlflow.start_run(run_name=run_name) as run:
+        with mlflow.start_run(run_id=run_id) as run:
             logger.info("Experiment Name: %s", experiment_name)
             logger.info("Experiment ID: %s", run.info.experiment_id)
             logger.info("Run Name: %s", run.info.run_name)
             logger.info("Run ID: %s", run.info.run_id)
-            inference(img_path=img_path, epoch=epoch)
+            inference(run=run, img_path=img_path, epoch=epoch)
     else:
-        inference(img_path=img_path, epoch=None)
+        inference(run=None, img_path=img_path, epoch=None)
 
 
 if __name__ == "__main__":

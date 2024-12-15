@@ -1,9 +1,9 @@
-from matplotlib import pyplot as plt
-import mlflow
-import torch
-import pandas as pd
-from sklearn.metrics import confusion_matrix
 import numpy as np
+import pandas as pd
+import torch
+from matplotlib import pyplot as plt
+from sklearn.metrics import confusion_matrix
+from tqdm import tqdm
 
 
 def visualize_confusion_matrix(
@@ -126,7 +126,7 @@ def create_evaluation_report(
     """
     model.eval()
     results = []
-    for image, label, id in enumerate(dataloader):
+    for image, label, id in tqdm(dataloader, unit="Images"):
         image = image.to(device)
         label = label.to(device)
         with torch.no_grad():

@@ -1,22 +1,31 @@
+import time
+from logging import getLogger
+
+import mlflow
 import mlflow.artifacts
 import torch
-from tqdm import tqdm
 from sklearn.metrics import f1_score, precision_score, recall_score
+from tqdm import tqdm
+
 from melanoma_classification.model import get_dermmel_classifier_v1
-import mlflow
-from melanoma_classification.utils import (
-    get_device,
-    DermMel,
-    production_transform,
-    train_transform,
-)
 from melanoma_classification.paths import (
     MODEL_STATE_DICT,
     OPTIMIZER_STATE_DICT,
     SCHEDULER_STATE_DICT,
+    STATE_FILES,
 )
-from logging import getLogger
-import time
+from melanoma_classification.utils.dermmel import (
+    DermMel,
+)
+from melanoma_classification.utils.devices import get_device
+from melanoma_classification.utils.mlflow import (
+    load_state_dict,
+    log_state_dict,
+)
+from melanoma_classification.utils.transformations import (
+    production_transform,
+    train_transform,
+)
 
 logger = getLogger(__name__)
 
@@ -175,29 +184,40 @@ def training(
         logger.info("Initializing new training run.")
         start_epoch = 0
         model.load_pretrained_weights("deit_base_patch16_224")
+        path = STATE_FILES.format(epoch=start_epoch)
+        log_state_dict(
+            container=model,
+            artifact_path=path,
+            file_name=MODEL_STATE_DICT,
+        )
+        log_state_dict(
+            container=optimizer,
+            artifact_path=path,
+            file_name=OPTIMIZER_STATE_DICT,
+        )
+        log_state_dict(
+            container=scheduler,
+            artifact_path=path,
+            file_name=SCHEDULER_STATE_DICT,
+        )
     else:
         logger.info("Resuming training from epoch %d.", init_epoch)
-        start_epoch = init_epoch + 1
-        model.load_state_dict(
-            mlflow.artifacts.load_dict(
-                run.info.artifact_uri
-                + "/"
-                + MODEL_STATE_DICT.format(epoch=init_epoch)
-            )
+        start_epoch = init_epoch
+        base_path = STATE_FILES.format(epoch=start_epoch) + "/"
+        load_state_dict(
+            run=run,
+            container=model,
+            artifact_path=base_path + MODEL_STATE_DICT,
         )
-        optimizer.load_state_dict(
-            mlflow.artifacts.load_dict(
-                run.info.artifact_uri
-                + "/"
-                + OPTIMIZER_STATE_DICT.format(epoch=init_epoch)
-            )
+        load_state_dict(
+            run=run,
+            container=optimizer,
+            artifact_path=base_path + OPTIMIZER_STATE_DICT,
         )
-        scheduler.load_state_dict(
-            mlflow.artifacts.load_dict(
-                run.info.artifact_uri
-                + "/"
-                + SCHEDULER_STATE_DICT.format(epoch=init_epoch)
-            )
+        load_state_dict(
+            run=run,
+            container=scheduler,
+            artifact_path=base_path + SCHEDULER_STATE_DICT,
         )
 
         for state in optimizer.state.values():
@@ -249,16 +269,20 @@ def training(
         )
 
         if (epoch + 1) % save_every_n_epochs == 0 or (epoch + 1) == num_epochs:
-            mlflow.log_dict(
-                model.state_dict(),
-                artifact_file=MODEL_STATE_DICT.format(epoch=epoch + 1),
+            checkpoint = STATE_FILES.format(epoch=epoch + 1)
+            log_state_dict(
+                container=model,
+                artifact_path=checkpoint,
+                file_name=MODEL_STATE_DICT,
             )
-            mlflow.log_dict(
-                optimizer.state_dict(),
-                artifact_file=OPTIMIZER_STATE_DICT.format(epoch=epoch + 1),
+            log_state_dict(
+                container=optimizer,
+                artifact_path=checkpoint,
+                file_name=OPTIMIZER_STATE_DICT,
             )
-            mlflow.log_dict(
-                scheduler.state_dict(),
-                artifact_file=SCHEDULER_STATE_DICT.format(epoch=epoch + 1),
+            log_state_dict(
+                container=scheduler,
+                artifact_path=checkpoint,
+                file_name=SCHEDULER_STATE_DICT,
             )
             logger.info("Checkpoint for epoch %d saved.", epoch + 1)

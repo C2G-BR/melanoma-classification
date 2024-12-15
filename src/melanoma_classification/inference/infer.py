@@ -1,23 +1,30 @@
+from importlib.resources import files
+from logging import getLogger
+
 import mlflow
 import numpy as np
 import torch
 from PIL import Image
-from importlib.resources import files
-from logging import getLogger
 
-from melanoma_classification.model import get_dermmel_classifier_v1
-from melanoma_classification.paths import MODEL_STATE_DICT
-from melanoma_classification.utils import get_device, production_transform
 from melanoma_classification.inference.attention_viz import (
     visualize_multihead_as_single_attention,
     visualize_multihead_attention,
     visualize_single_attention,
 )
+from melanoma_classification.model import get_dermmel_classifier_v1
+from melanoma_classification.paths import MODEL_STATE_DICT, STATE_FILES
+from melanoma_classification.utils import (
+    get_device,
+    load_state_dict,
+    production_transform,
+)
 
 logger = getLogger(__name__)
 
 
-def inference(run: mlflow.ActiveRun, img_path: str, epoch: int | None) -> None:
+def inference(
+    run: mlflow.ActiveRun | None, img_path: str, epoch: int | None
+) -> None:
     device = get_device()
     model = get_dermmel_classifier_v1()
     if epoch is None:
@@ -27,12 +34,12 @@ def inference(run: mlflow.ActiveRun, img_path: str, epoch: int | None) -> None:
         checkpoint = torch.load(model_path, weights_only=True)
         model.load_state_dict(checkpoint)
     else:
-        model.load_state_dict(
-            mlflow.artifacts.load_dict(
-                run.info.artifact_uri
-                + "/"
-                + MODEL_STATE_DICT.format(epoch=epoch)
-            )
+        load_state_dict(
+            run=run,
+            container=model,
+            artifact_path=STATE_FILES.format(epoch=epoch)
+            + "/"
+            + MODEL_STATE_DICT,
         )
     model.to(device)
     model.eval()
