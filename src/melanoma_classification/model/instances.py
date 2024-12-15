@@ -16,7 +16,7 @@ def get_dermmel_classifier_v1() -> VisionTransformer:
         in_channels=in_channels,
         patch_size=patch_size,
         img_size=224,
-        dropout=0.5,
+        dropout=0.0,
         mlp_ratio=4.0,
         num_heads=12,
         norm="post",
