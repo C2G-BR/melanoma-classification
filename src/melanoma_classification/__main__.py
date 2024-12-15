@@ -48,8 +48,7 @@ def train(
 
     if not new_run and not continue_run:
         logger.warning(
-            "To continue a run, all required variables must be provided.",
-            cont_run_vars,
+            "To continue a run, all necessary variables must be provided.",
         )
         return
 
