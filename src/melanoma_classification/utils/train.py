@@ -120,6 +120,7 @@ def _validate(dataloader, model, criterion, scheduler, epoch, device):
 
 
 def training(
+    run: mlflow.ActiveRun,
     data_path: str,
     num_epochs: int,
     freezed_epochs: int = 0,
@@ -130,6 +131,7 @@ def training(
     """Trains the model.
 
     Args:
+        run: The active MLflow run.
         data_path: The path to the data.
         num_epochs: The number of epochs to train.
         freezed_epochs: The number of epochs to freeze the backbone.
@@ -178,17 +180,23 @@ def training(
         start_epoch = init_epoch + 1
         model.load_state_dict(
             mlflow.artifacts.load_dict(
-                MODEL_STATE_DICT.format(epoch=init_epoch)
+                run.info.artifact_uri
+                + "/"
+                + MODEL_STATE_DICT.format(epoch=init_epoch)
             )
         )
         optimizer.load_state_dict(
             mlflow.artifacts.load_dict(
-                OPTIMIZER_STATE_DICT.format(epoch=init_epoch)
+                run.info.artifact_uri
+                + "/"
+                + OPTIMIZER_STATE_DICT.format(epoch=init_epoch)
             )
         )
         scheduler.load_state_dict(
             mlflow.artifacts.load_dict(
-                SCHEDULER_STATE_DICT.format(epoch=init_epoch)
+                run.info.artifact_uri
+                + "/"
+                + SCHEDULER_STATE_DICT.format(epoch=init_epoch)
             )
         )
 

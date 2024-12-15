@@ -17,7 +17,7 @@ from melanoma_classification.inference.attention_viz import (
 logger = getLogger(__name__)
 
 
-def inference(img_path: str, epoch: int | None) -> None:
+def inference(run: mlflow.ActiveRun, img_path: str, epoch: int | None) -> None:
     device = get_device()
     model = get_dermmel_classifier_v1()
     if epoch is None:
@@ -28,7 +28,11 @@ def inference(img_path: str, epoch: int | None) -> None:
         model.load_state_dict(checkpoint)
     else:
         model.load_state_dict(
-            mlflow.artifacts.load_dict(MODEL_STATE_DICT.format(epoch=epoch))
+            mlflow.artifacts.load_dict(
+                run.info.artifact_uri
+                + "/"
+                + MODEL_STATE_DICT.format(epoch=epoch)
+            )
         )
     model.to(device)
     model.eval()

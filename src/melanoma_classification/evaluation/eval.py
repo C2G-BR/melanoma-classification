@@ -21,11 +21,13 @@ from melanoma_classification.evaluation.report import (
 logger = getLogger(__name__)
 
 
-def evaluation(data_path: str, epoch: int) -> None:
+def evaluation(run, data_path: str, epoch: int) -> None:
     device = get_device()
     model = get_dermmel_classifier_v1()
     model.load_state_dict(
-        mlflow.artifacts.load_dict(MODEL_STATE_DICT.format(epoch=epoch))
+        mlflow.artifacts.load_dict(
+            run.info.artifact_uri + "/" + MODEL_STATE_DICT.format(epoch=epoch)
+        )
     )
     model.to(device)
     dataset = DermMel(data_path, split="test", transform=production_transform())

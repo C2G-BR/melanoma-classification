@@ -22,22 +22,48 @@ app = typer.Typer(
 
 
 @app.command()
-def train(data_path: str, experiment_name: str):
+def train(
+    data_path: str,
+    experiment_name: str,
+    run_id: str | None = None,
+    epoch: int | None = None,
+):
     if git_changes_detected():
         logger.warning(
             "Changes detected in the git repository. This is not recommended as"
             " results will not be reproducible. Please stop the run and commit "
             "your changes. The commit hash is used for model versioning.",
         )
-
     commit_hash = get_git_commit_hash()
     if commit_hash is None:
         logger.warning("Could not retrieve the git commit hash.")
         return
 
+    # Variables required to continue a run.
+    cont_run_vars = [run_id, epoch]
+    continue_run = all(var is not None for var in cont_run_vars)
+    new_run = all(var is None for var in cont_run_vars)
+
+    if not new_run and not continue_run:
+        logger.warning(
+            "To continue a run, all required variables (run_id, epoch) must be provided."
+        )
+        return
+    
+    if continue_run:
+        previous_commit_hash = mlflow.get_run(run_id).data.params.get("commit_hash")
+        if previous_commit_hash != commit_hash:
+            logger.warning(
+                "The commit hash of the previous run does not match the current"
+                " commit hash. This is not recommended as results will not be "
+                "reproducible. Please stop the run and commit your changes. "
+                "The commit hash is used for model versioning."
+            )
+
     mlflow.set_experiment(experiment_name=experiment_name)
-    with mlflow.start_run() as run:
-        mlflow.log_param("commit_hash", commit_hash)
+    with mlflow.start_run(run_id=run_id) as run:
+        if new_run:
+            mlflow.log_param("commit_hash", commit_hash)
         logger.info("Commit Hash: %s", commit_hash)
         logger.info("Experiment Name: %s", experiment_name)
         logger.info("Experiment ID: %s", run.info.experiment_id)
@@ -49,19 +75,19 @@ def train(data_path: str, experiment_name: str):
             freezed_epochs=5,
             num_unfreeze_layers=None,
             save_every_n_epochs=1,
-            init_epoch=None,
+            init_epoch=epoch,
         )
 
 
 @app.command()
-def evaluate(data_path: str, experiment_name: str, run_name: str, epoch: int):
+def evaluate(data_path: str, experiment_name: str, run_id: str, epoch: int):
     mlflow.set_experiment(experiment_name=experiment_name)
-    with mlflow.start_run(run_name=run_name) as run:
+    with mlflow.start_run(run_id=run_id) as run:
         logger.info("Experiment Name: %s", experiment_name)
         logger.info("Experiment ID: %s", run.info.experiment_id)
         logger.info("Run Name: %s", run.info.run_name)
         logger.info("Run ID: %s", run.info.run_id)
-        evaluation(data_path=data_path, epoch=epoch)
+        evaluation(run, data_path=data_path, epoch=epoch)
 
 
 @app.command()
