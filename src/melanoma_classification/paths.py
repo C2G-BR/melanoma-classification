@@ -1,4 +1,4 @@
-CHECKPOINT = "checkpoints/epoch={epoch}"
+CHECKPOINT = "checkpoints/epoch={epoch:03d}"
 STATE_FILES = CHECKPOINT + "/states"
 IMAGE_FILES = CHECKPOINT + "/images/"
 EVALUATION_FILES = CHECKPOINT + "/evaluations/"
