@@ -203,6 +203,7 @@ def training(
     else:
         logger.info("Resuming training from epoch %d.", init_epoch)
         start_epoch = init_epoch
+        num_epochs += init_epoch
         base_path = STATE_FILES.format(epoch=start_epoch) + "/"
         load_state_dict(
             run=run,

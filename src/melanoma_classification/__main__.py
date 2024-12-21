@@ -29,6 +29,7 @@ def train(
     experiment_name: str,
     run_id: str | None = None,
     epoch: int | None = None,
+    num_epochs: int | None = 50,
 ):
     if git_changes_detected():
         logger.warning(
@@ -76,7 +77,7 @@ def train(
         training(
             run=run,
             data_path=data_path,
-            num_epochs=50,
+            num_epochs=num_epochs,
             freezed_epochs=5,
             num_unfreeze_layers=None,
             save_every_n_epochs=1,
