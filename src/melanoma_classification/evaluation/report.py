@@ -127,6 +127,7 @@ def create_evaluation_report(
     model.eval()
     results = []
     for image, label, id in tqdm(dataloader, unit="Images"):
+        id = id[0]
         image = image.to(device)
         label = label.to(device)
         with torch.no_grad():

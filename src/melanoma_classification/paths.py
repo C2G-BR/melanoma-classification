@@ -1,7 +1,7 @@
 CHECKPOINT = "checkpoints/epoch={epoch:03d}"
 STATE_FILES = CHECKPOINT + "/states"
 IMAGE_FILES = CHECKPOINT + "/images/"
-EVALUATION_FILES = CHECKPOINT + "/evaluations/"
+EVALUATION_FILES = CHECKPOINT + "/evaluations"
 MODEL_STATE_DICT = "model_state_dict.pth"
 OPTIMIZER_STATE_DICT = "optimizer_state_dict.pth"
 SCHEDULER_STATE_DICT = "scheduler_state_dict.pth"

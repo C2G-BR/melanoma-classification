@@ -1,4 +1,5 @@
 from logging import getLogger
+from tempfile import TemporaryDirectory
 
 import mlflow
 import torch
@@ -46,9 +47,13 @@ def evaluation(run: mlflow.ActiveRun, data_path: str, epoch: int) -> None:
     report = create_evaluation_report(
         model=model, dataloader=dataloader, device=device
     )
-    mlflow.log_table(
-        report, EVALUATION_FILES.format(epoch=epoch) + "/evaluation_report.parquet"
-    )
+    with TemporaryDirectory() as tmp_dir:
+        local_path = tmp_dir + "/evaluation_report.parquet"
+        report.to_parquet(local_path)
+        mlflow.log_artifact(
+            local_path,
+            EVALUATION_FILES.format(epoch=epoch),
+        )
 
     fig = visualize_confusion_matrix(
         evaluation_report=report, class_labels=dataset.classes

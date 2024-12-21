@@ -1,7 +1,9 @@
 import os
-import torch
-import numpy as np
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -24,7 +26,7 @@ class DermMel(Dataset):
         self.transform = transform
 
         self.classes = ["Melanoma", "NotMelanoma"]
-        self.image_paths = []
+        self.image_paths: list[Path] = []
         self.labels = []
 
         base_path = "DermMel"
@@ -35,7 +37,7 @@ class DermMel(Dataset):
             )
             for img_file in os.listdir(class_dir):
                 if img_file.endswith((".jpg", ".jpeg")):
-                    self.image_paths.append(os.path.join(class_dir, img_file))
+                    self.image_paths.append(Path(class_dir, img_file))
                     self.labels.append(label)
 
     def __len__(self) -> int:
@@ -66,7 +68,7 @@ class DermMel(Dataset):
         if self.transform:
             image = self.transform(image=np.array(image))["image"]
 
-        return image, label, img_path.split("/")[-1].split(".")[0]
+        return image, label, img_path.stem
 
     def visualize_image(self, idx: int) -> None:
         """Visualize an image and its corresponding label from the DermMel
