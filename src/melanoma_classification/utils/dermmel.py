@@ -1,12 +1,12 @@
 import os
-import torch
-import numpy as np
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 from PIL import Image
 from torch.utils.data import Dataset
 from torchvision import transforms
-
-from melanoma_classification.utils import production_transform
 
 
 class DermMel(Dataset):
@@ -24,23 +24,20 @@ class DermMel(Dataset):
         self.root_dir = root_dir
         self.split = split
         self.transform = transform
-        self.prod_transform = production_transform()
 
-        # Define the subdirectories for each class (Melanoma, NotMelanoma)
         self.classes = ["Melanoma", "NotMelanoma"]
-        self.image_paths = []
+        self.image_paths: list[Path] = []
         self.labels = []
 
         base_path = "DermMel"
 
-        # Load image paths and labels
         for label, class_name in enumerate(self.classes):
             class_dir = os.path.join(
                 self.root_dir, base_path, self.split, class_name
             )
             for img_file in os.listdir(class_dir):
                 if img_file.endswith((".jpg", ".jpeg")):
-                    self.image_paths.append(os.path.join(class_dir, img_file))
+                    self.image_paths.append(Path(class_dir, img_file))
                     self.labels.append(label)
 
     def __len__(self) -> int:
@@ -51,30 +48,27 @@ class DermMel(Dataset):
         """
         return len(self.image_paths)
 
-    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int, str]:
         """Get an image and its label.
 
         Args:
             idx: The index of the image to retrieve.
 
         Returns:
-            The image and its label.
+            The image, its label, and its id.
         """
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        # Load the image
         img_path = self.image_paths[idx]
         image = Image.open(img_path).convert("RGB")
 
-        # Get the label
         label = self.labels[idx]
 
-        # Apply transformations using albumentations
         if self.transform:
             image = self.transform(image=np.array(image))["image"]
 
-        return image, label
+        return image, label, img_path.stem
 
     def visualize_image(self, idx: int) -> None:
         """Visualize an image and its corresponding label from the DermMel
@@ -97,7 +91,7 @@ class DermMel(Dataset):
                         std = torch.tensor(t.std).view(-1, 1, 1)
                         image = image * std + mean
 
-            # Convert the image tensor to NumPy and transpose to HWC (Height, Width, Channels)
+            # Convert the image tensor to NumPy and transpose to HWC
             image = image.permute(1, 2, 0).numpy()
             # Clip to the valid range [0, 1] for displaying
             image = np.clip(image, 0, 1)

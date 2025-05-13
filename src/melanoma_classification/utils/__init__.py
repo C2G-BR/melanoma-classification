@@ -1,20 +1,25 @@
+from melanoma_classification.utils.dermmel import DermMel
 from melanoma_classification.utils.devices import get_device
+from melanoma_classification.utils.git import (
+    get_git_commit_hash,
+    git_changes_detected,
+)
+from melanoma_classification.utils.mlflow import load_state_dict, log_state_dict
+from melanoma_classification.utils.train import training
 from melanoma_classification.utils.transformations import (
-    train_transform,
     production_transform,
+    train_transform,
 )
-from melanoma_classification.utils.attentions import (
-    visualize_single_attention,
-    visualize_multihead_as_single_attention,
-    visualize_multihead_attention,
-)
-
 
 __all__ = [
+    "check_git_changes",
+    "DermMel",
     "get_device",
+    "get_git_commit_hash",
+    "git_changes_detected",
+    "load_state_dict",
+    "log_state_dict",
     "production_transform",
+    "training",
     "train_transform",
-    "visualize_single_attention",
-    "visualize_multihead_as_single_attention",
-    "visualize_multihead_attention",
 ]
